@@ -1,0 +1,23 @@
+{
+  "name": "synapsejs",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "bun@1.1.20",
+  "scripts": {
+    "dev": "bunx vite",
+    "build": "bunx vite build",
+    "preview": "bunx vite preview",
+    "bench": "bunx vite --open /bench.html",
+    "bench:dom": "bunx vite --open /bench-dom.html"
+  },
+  "dependencies": {
+    "react": "^18.3.1"
+  },
+  "devDependencies": {
+    "@webgpu/types": "^0.1.52",
+    "@types/react": "^18.3.3",
+    "typescript": "^5.5.4",
+    "vite": "^5.3.0"
+  }
+}
