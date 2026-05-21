@@ -1,4 +1,4 @@
-import { Color4, SynapseBox, SynapseEngine, Vec2 } from "../synapse-core";
+import { Color4, SynapseBox, SynapseEngine, Vec2 } from "../core";
 import {
   BenchConfig,
   BenchHandle,

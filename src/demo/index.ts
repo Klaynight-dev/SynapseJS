@@ -1,4 +1,4 @@
-import { Color4, SynapseEngine } from "./core";
+import { Color4, SynapseEngine } from "../core";
 
 async function main(): Promise<void> {
   const canvas = document.createElement("canvas");
@@ -24,6 +24,14 @@ async function main(): Promise<void> {
     size: { x: 260, y: 84 },
     color: baseColor,
     hoverColor,
+    radius: 18,
+    softness: 2,
+    gradientColor: { r: 0.1, g: 0.4, b: 0.8, a: 1.0 },
+    gradientMix: 0.6,
+    shadowColor: { r: 0, g: 0, b: 0, a: 0.35 },
+    shadowOffset: { x: 0, y: 10 },
+    shadowBlur: 18,
+    shadowSpread: 2,
   });
 
   let toggled = false;

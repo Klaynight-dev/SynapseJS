@@ -46,6 +46,7 @@ Parametres optionnels:
 - speed: vitesse par frame
 - gpu: simulation GPU (compute pass)
 - static: desactive les updates (mesure le rendu statique)
+- format: json ou csv pour le report
 
 Exemple:
 ```
@@ -61,30 +62,42 @@ http://localhost:5173/bench-dom.html?rects=5000&size=10&speed=0.9
 
 Rapport:
 ```
-http://localhost:5173/bench-report.html?rects=5000&size=10&speed=0.9&gpu=1&static=0&duration=4000&warmup=1000
+http://localhost:5173/bench-report.html?rects=5000&size=10&speed=0.9&gpu=1&static=0&duration=4000&warmup=1000&format=json
 ```
 
 ## Synapse Bench Report (2026-05-21)
 
-```
+```yml
 Config: rects=2500, size=12, speed=0.9, static=false, gpu=true
 Duration: 4000ms, Warmup: 1000ms
 
 Synapse:
-	Samples: 39
-	Avg FPS: 127.8
-	P95 Frame: 8.00 ms
-	Avg Update: 0.00 ms
-	Avg CPU Render: 0.10 ms
-	Avg Draw Calls: 1.0
+  Samples: 39
+  Avg FPS: 182.5
+  Median Frame: 7.00 ms
+  P95 Frame: 11.00 ms
+  P99 Frame: 16.00 ms
+  Min Frame: 1.00 ms
+  Max Frame: 16.00 ms
+  Std Dev Frame: 2.76 ms
+  Avg Update: 0.00 ms
+  Avg CPU Render: 0.36 ms
+  Avg Draw Calls: 1.0
 
 DOM:
-	Samples: 34
-	Avg FPS: 32.9
-	P95 Frame: 53.00 ms
-	Avg Update: 10.15 ms
+  Samples: 32
+  Avg FPS: 26.6
+  Median Frame: 38.00 ms
+  P95 Frame: 52.00 ms
+  P99 Frame: 56.00 ms
+  Min Frame: 25.00 ms
+  Max Frame: 56.00 ms
+  Std Dev Frame: 8.66 ms
+  Avg Update: 13.13 ms
 
-Synapse / DOM FPS ratio: 3.89x
+Synapse / DOM FPS ratio: 6.87x
+
+Params: ?rects=5000&size=10&speed=0.9&gpu=1&static=0&duration=4000&warmup=1000&format=json
 ```
 
 ## Architecture
@@ -92,6 +105,7 @@ Synapse / DOM FPS ratio: 3.89x
 - Synapse-Core: init WebGPU, scene graph en RAM, instancing, raycaster.
 - Synapse-Shaders: WGSL pour primitives UI (rects, SDF texte, effets).
 - Synapse-Adapters: wrappers pour frameworks (React/Svelte/Angular).
+- UI styles: radius, gradient, shadow via WGSL.
 
 ## Structure
 

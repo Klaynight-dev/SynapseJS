@@ -4,7 +4,7 @@ import {
   SynapseBox,
   SynapseEngine,
   SynapsePointerEvent,
-} from "../synapse-core";
+} from "../core";
 
 type SynapseCanvasProps = {
   width: number;
@@ -86,6 +86,14 @@ export function SynapseRect(props: SynapseRectProps): null {
       size: props.size,
       color: props.color,
       hoverColor: props.hoverColor,
+      radius: props.radius,
+      softness: props.softness,
+      gradientColor: props.gradientColor,
+      gradientMix: props.gradientMix,
+      shadowColor: props.shadowColor,
+      shadowOffset: props.shadowOffset,
+      shadowBlur: props.shadowBlur,
+      shadowSpread: props.shadowSpread,
     });
 
     boxRef.current = box;
@@ -102,15 +110,38 @@ export function SynapseRect(props: SynapseRectProps): null {
       return;
     }
 
-    box.setPosition(props.position);
-    box.setSize(props.size);
-    box.setColor(props.color);
-    box.setHoverColor(props.hoverColor);
+    box.update({
+      position: props.position,
+      size: props.size,
+      color: props.color,
+      hoverColor: props.hoverColor,
+      radius: props.radius,
+      softness: props.softness,
+      gradientColor: props.gradientColor,
+      gradientMix: props.gradientMix,
+      shadowColor: props.shadowColor,
+      shadowOffset: props.shadowOffset,
+      shadowBlur: props.shadowBlur,
+      shadowSpread: props.shadowSpread,
+    });
 
     // React state -> props -> Synapse setters -> scene graph mutation.
     // On the next render pass, Synapse packs all instances into a storage
     // buffer and issues a single instanced draw call.
-  }, [props.position, props.size, props.color, props.hoverColor]);
+  }, [
+    props.position,
+    props.size,
+    props.color,
+    props.hoverColor,
+    props.radius,
+    props.softness,
+    props.gradientColor,
+    props.gradientMix,
+    props.shadowColor,
+    props.shadowOffset,
+    props.shadowBlur,
+    props.shadowSpread,
+  ]);
 
   React.useEffect(() => {
     const box = boxRef.current;

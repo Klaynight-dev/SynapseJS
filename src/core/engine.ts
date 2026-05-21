@@ -1,125 +1,20 @@
-export type Vec2 = {
-  x: number;
-  y: number;
-};
-
-export type Color4 = {
-  r: number;
-  g: number;
-  b: number;
-  a: number;
-};
-
-export interface BoxProps {
-  position: Vec2;
-  size: Vec2;
-  color: Color4;
-  hoverColor?: Color4;
-}
-
-export interface SynapsePointerEvent {
-  x: number;
-  y: number;
-  nodeId: number;
-}
-
-export type SynapseFrameStats = {
-  fps: number;
-  frameMs: number;
-  cpuMs: number;
-  drawCalls: number;
-  nodeCount: number;
-};
-
-type PointerHandler = (event: SynapsePointerEvent) => void;
-
-type NodeHandlers = {
-  onClick?: PointerHandler;
-  onPointerEnter?: PointerHandler;
-  onPointerLeave?: PointerHandler;
-};
-
-interface RectNode extends BoxProps, NodeHandlers {
-  id: number;
-  kind: "rect";
-  isHovered: boolean;
-}
-
-class SceneGraph {
-  private nodes: RectNode[] = [];
-  private indexById = new Map<number, number>();
-
-  add(node: RectNode): number {
-    const index = this.nodes.length;
-    this.nodes.push(node);
-    this.indexById.set(node.id, index);
-    return index;
-  }
-
-  remove(id: number): { removedIndex: number; movedNode?: RectNode } | null {
-    const index = this.indexById.get(id);
-    if (index === undefined) {
-      return null;
-    }
-
-    const lastIndex = this.nodes.length - 1;
-    const removedIndex = index;
-    let movedNode: RectNode | undefined;
-
-    if (index !== lastIndex) {
-      const tail = this.nodes[lastIndex];
-      this.nodes[index] = tail;
-      this.indexById.set(tail.id, index);
-      movedNode = tail;
-    }
-
-    this.nodes.pop();
-    this.indexById.delete(id);
-    return { removedIndex, movedNode };
-  }
-
-  getById(id: number): RectNode | undefined {
-    const index = this.indexById.get(id);
-    if (index === undefined) {
-      return undefined;
-    }
-    return this.nodes[index];
-  }
-
-  getIndex(id: number): number | undefined {
-    return this.indexById.get(id);
-  }
-
-  all(): RectNode[] {
-    return this.nodes;
-  }
-
-  count(): number {
-    return this.nodes.length;
-  }
-
-  hitTest(x: number, y: number): RectNode | undefined {
-    for (let i = this.nodes.length - 1; i >= 0; i -= 1) {
-      const node = this.nodes[i];
-      const withinX = x >= node.position.x && x <= node.position.x + node.size.x;
-      const withinY = y >= node.position.y && y <= node.position.y + node.size.y;
-      if (withinX && withinY) {
-        return node;
-      }
-    }
-    return undefined;
-  }
-}
-
-const GLOBAL_UNIFORM_FLOATS = 4;
-const GLOBAL_UNIFORM_SIZE = GLOBAL_UNIFORM_FLOATS * 4;
-const INSTANCE_FLOATS = 8;
-const INSTANCE_STRIDE = INSTANCE_FLOATS * 4;
-const VELOCITY_FLOATS = 2;
-const VELOCITY_STRIDE = VELOCITY_FLOATS * 4;
-const FRAME_BUFFERS = 3;
-const WORKGROUP_SIZE = 256;
-const STATS_WINDOW = 120;
+import type { Vec2, Color4, BoxProps, SynapseFrameStats } from "./types";
+import { ShaderStage, BufferUsage } from "./flags";
+import {
+  ZERO_COLOR,
+  ZERO_VEC2,
+  GLOBAL_UNIFORM_FLOATS,
+  GLOBAL_UNIFORM_SIZE,
+  INSTANCE_FLOATS,
+  INSTANCE_STRIDE,
+  VELOCITY_FLOATS,
+  VELOCITY_STRIDE,
+  FRAME_BUFFERS,
+  WORKGROUP_SIZE,
+  STATS_WINDOW,
+} from "./constants";
+import { SceneGraph, RectNode } from "./scene-graph";
+import { SynapseBox } from "./box";
 
 export class SynapseEngine {
   private adapter!: GPUAdapter;
@@ -157,6 +52,9 @@ export class SynapseEngine {
   private dirtyMax = -1;
   private forceFullUpload = true;
   private continuousRender = false;
+  private useRenderBundles = true;
+  private renderBundles: Array<GPURenderBundle | null> = [];
+  private renderBundleCounts: number[] = [];
   private statsEnabled = false;
   private frameTimes: number[] = [];
   private frameTimeSum = 0;
@@ -252,6 +150,11 @@ export class SynapseEngine {
     }
   }
 
+  setRenderBundles(enabled: boolean): void {
+    this.useRenderBundles = enabled;
+    this.invalidateRenderBundles();
+  }
+
   enableGpuSimulation(enabled: boolean, velocities?: Vec2[]): boolean {
     if (!enabled) {
       this.simulateOnGpu = false;
@@ -327,6 +230,15 @@ export class SynapseEngine {
     const id = this.nextId;
     this.nextId += 1;
 
+    const radius = props.radius ?? 0;
+    const softness = props.softness ?? 1;
+    const gradientColor = props.gradientColor ?? props.color;
+    const gradientMix = props.gradientMix ?? 0;
+    const shadowColor = props.shadowColor ?? ZERO_COLOR;
+    const shadowOffset = props.shadowOffset ?? ZERO_VEC2;
+    const shadowBlur = props.shadowBlur ?? 0;
+    const shadowSpread = props.shadowSpread ?? 0;
+
     const node: RectNode = {
       id,
       kind: "rect",
@@ -335,6 +247,14 @@ export class SynapseEngine {
       color: props.color,
       hoverColor: props.hoverColor,
       isHovered: false,
+      radius,
+      softness,
+      gradientColor,
+      gradientMix,
+      shadowColor,
+      shadowOffset,
+      shadowBlur,
+      shadowSpread,
     };
 
     const index = this.scene.add(node);
@@ -372,12 +292,44 @@ export class SynapseEngine {
       node.hoverColor = updates.hoverColor;
     }
 
+    if ("radius" in updates && updates.radius !== undefined) {
+      node.radius = updates.radius;
+    }
+
+    if ("softness" in updates && updates.softness !== undefined) {
+      node.softness = updates.softness;
+    }
+
+    if ("gradientColor" in updates && updates.gradientColor) {
+      node.gradientColor = updates.gradientColor;
+    }
+
+    if ("gradientMix" in updates && updates.gradientMix !== undefined) {
+      node.gradientMix = updates.gradientMix;
+    }
+
+    if ("shadowColor" in updates && updates.shadowColor) {
+      node.shadowColor = updates.shadowColor;
+    }
+
+    if ("shadowOffset" in updates && updates.shadowOffset) {
+      node.shadowOffset = updates.shadowOffset;
+    }
+
+    if ("shadowBlur" in updates && updates.shadowBlur !== undefined) {
+      node.shadowBlur = updates.shadowBlur;
+    }
+
+    if ("shadowSpread" in updates && updates.shadowSpread !== undefined) {
+      node.shadowSpread = updates.shadowSpread;
+    }
+
     this.writeInstanceAt(index, node);
     this.markDirty(index);
     this.invalidate();
   }
 
-  setNodeHandlers(id: number, handlers: NodeHandlers): void {
+  setNodeHandlers(id: number, handlers: { onClick?: (e: any) => void; onPointerEnter?: (e: any) => void; onPointerLeave?: (e: any) => void }): void {
     const node = this.scene.getById(id);
     if (!node) {
       return;
@@ -428,7 +380,7 @@ export class SynapseEngine {
     }
 
     const device = await adapter.requestDevice();
-    const context = this.canvas.getContext("webgpu");
+    const context = this.canvas.getContext("webgpu") as GPUCanvasContext | null;
     if (!context) {
       throw new Error("WebGPU canvas context unavailable.");
     }
@@ -452,12 +404,12 @@ export class SynapseEngine {
       entries: [
         {
           binding: 0,
-          visibility: GPUShaderStage.VERTEX,
+          visibility: ShaderStage.VERTEX,
           buffer: { type: "uniform" },
         },
         {
           binding: 1,
-          visibility: GPUShaderStage.VERTEX,
+          visibility: ShaderStage.VERTEX,
           buffer: { type: "read-only-storage" },
         },
       ],
@@ -467,17 +419,17 @@ export class SynapseEngine {
       entries: [
         {
           binding: 0,
-          visibility: GPUShaderStage.COMPUTE,
+          visibility: ShaderStage.COMPUTE,
           buffer: { type: "uniform" },
         },
         {
           binding: 1,
-          visibility: GPUShaderStage.COMPUTE,
+          visibility: ShaderStage.COMPUTE,
           buffer: { type: "storage" },
         },
         {
           binding: 2,
-          visibility: GPUShaderStage.COMPUTE,
+          visibility: ShaderStage.COMPUTE,
           buffer: { type: "storage" },
         },
       ],
@@ -578,11 +530,17 @@ export class SynapseEngine {
       ],
     });
 
-    pass.setPipeline(this.pipeline);
-    pass.setBindGroup(0, this.renderBindGroups[frameSlot]);
-
     if (nodes.length > 0) {
-      pass.draw(6, nodes.length, 0, 0);
+      const bundle = this.useRenderBundles
+        ? this.getRenderBundle(frameSlot, nodes.length)
+        : null;
+      if (bundle) {
+        pass.executeBundles([bundle]);
+      } else {
+        pass.setPipeline(this.pipeline);
+        pass.setBindGroup(0, this.renderBindGroups[frameSlot]);
+        pass.draw(6, nodes.length, 0, 0);
+      }
     }
 
     pass.end();
@@ -650,6 +608,22 @@ export class SynapseEngine {
     this.instanceData[offset + 5] = color.g;
     this.instanceData[offset + 6] = color.b;
     this.instanceData[offset + 7] = color.a;
+    this.instanceData[offset + 8] = node.radius;
+    this.instanceData[offset + 9] = node.softness;
+    this.instanceData[offset + 10] = node.gradientMix;
+    this.instanceData[offset + 11] = 0;
+    this.instanceData[offset + 12] = node.gradientColor.r;
+    this.instanceData[offset + 13] = node.gradientColor.g;
+    this.instanceData[offset + 14] = node.gradientColor.b;
+    this.instanceData[offset + 15] = node.gradientColor.a;
+    this.instanceData[offset + 16] = node.shadowColor.r;
+    this.instanceData[offset + 17] = node.shadowColor.g;
+    this.instanceData[offset + 18] = node.shadowColor.b;
+    this.instanceData[offset + 19] = node.shadowColor.a;
+    this.instanceData[offset + 20] = node.shadowOffset.x;
+    this.instanceData[offset + 21] = node.shadowOffset.y;
+    this.instanceData[offset + 22] = node.shadowBlur;
+    this.instanceData[offset + 23] = node.shadowSpread;
   }
 
   private rebuildInstanceData(nodes: RectNode[]): void {
@@ -689,6 +663,34 @@ export class SynapseEngine {
     );
 
     this.clearDirty();
+  }
+
+  private invalidateRenderBundles(): void {
+    this.renderBundles = new Array<GPURenderBundle | null>(FRAME_BUFFERS).fill(null);
+    this.renderBundleCounts = new Array<number>(FRAME_BUFFERS).fill(0);
+  }
+
+  private getRenderBundle(frameSlot: number, nodeCount: number): GPURenderBundle | null {
+    if (nodeCount <= 0) {
+      return null;
+    }
+
+    const existing = this.renderBundles[frameSlot];
+    if (existing && this.renderBundleCounts[frameSlot] === nodeCount) {
+      return existing;
+    }
+
+    const encoder = this.device.createRenderBundleEncoder({
+      colorFormats: [this.format],
+    });
+    encoder.setPipeline(this.pipeline);
+    encoder.setBindGroup(0, this.renderBindGroups[frameSlot]);
+    encoder.draw(6, nodeCount, 0, 0);
+    const bundle = encoder.finish();
+
+    this.renderBundles[frameSlot] = bundle;
+    this.renderBundleCounts[frameSlot] = nodeCount;
+    return bundle;
   }
 
   private dispatchCompute(
@@ -740,6 +742,7 @@ export class SynapseEngine {
     this.globalUniformBuffers = [];
     this.renderBindGroups = [];
     this.computeBindGroup = undefined;
+    this.invalidateRenderBundles();
   }
 
   private allocateBuffers(instanceCapacity: number): void {
@@ -760,18 +763,18 @@ export class SynapseEngine {
 
     this.velocityBuffer = this.device.createBuffer({
       size: this.velocityData.byteLength,
-      usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+      usage: BufferUsage.STORAGE | BufferUsage.COPY_DST,
     });
 
     for (let i = 0; i < FRAME_BUFFERS; i += 1) {
       const globalUniformBuffer = this.device.createBuffer({
         size: GLOBAL_UNIFORM_SIZE,
-        usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+        usage: BufferUsage.UNIFORM | BufferUsage.COPY_DST,
       });
 
       const instanceBuffer = this.device.createBuffer({
         size: this.instanceData.byteLength,
-        usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+        usage: BufferUsage.STORAGE | BufferUsage.COPY_DST,
       });
 
       const renderBindGroup = this.device.createBindGroup({
@@ -816,6 +819,7 @@ export class SynapseEngine {
       this.device.queue.writeBuffer(this.velocityBuffer, 0, this.velocityData.buffer, 0, byteLength);
     }
 
+    this.invalidateRenderBundles();
     this.forceFullUpload = true;
     this.clearDirty();
     this.frameIndex = 0;
@@ -897,41 +901,5 @@ export class SynapseEngine {
       x: (event.clientX - rect.left) * scaleX,
       y: (event.clientY - rect.top) * scaleY,
     };
-  }
-}
-
-export class SynapseBox {
-  constructor(private engine: SynapseEngine, public readonly id: number) {}
-
-  setPosition(position: Vec2): void {
-    this.engine.updateBox(this.id, { position });
-  }
-
-  setSize(size: Vec2): void {
-    this.engine.updateBox(this.id, { size });
-  }
-
-  setColor(color: Color4): void {
-    this.engine.updateBox(this.id, { color });
-  }
-
-  setHoverColor(hoverColor?: Color4): void {
-    this.engine.updateBox(this.id, { hoverColor });
-  }
-
-  onClick(handler?: PointerHandler): void {
-    this.engine.setNodeHandlers(this.id, { onClick: handler });
-  }
-
-  onPointerEnter(handler?: PointerHandler): void {
-    this.engine.setNodeHandlers(this.id, { onPointerEnter: handler });
-  }
-
-  onPointerLeave(handler?: PointerHandler): void {
-    this.engine.setNodeHandlers(this.id, { onPointerLeave: handler });
-  }
-
-  destroy(): void {
-    this.engine.removeNode(this.id);
   }
 }
