@@ -1,5 +1,7 @@
 import {
   BenchConfig,
+  BenchHandle,
+  BenchSample,
   clamp,
   createFrameWindow,
   createOverlay,
@@ -10,6 +12,8 @@ import {
 type DomBenchOptions = {
   label?: string;
   config?: BenchConfig;
+  showOverlay?: boolean;
+  onSample?: (sample: BenchSample) => void;
 };
 
 function formatStats(
@@ -32,14 +36,16 @@ function formatStats(
     `Update loop: ${updateMs.toFixed(2)} ms`,
     `Element size: ${sizePx}px`,
     `Viewport: ${Math.round(bounds.width)}x${Math.round(bounds.height)} px`,
-    "Params: ?rects=5000&size=10&speed=0.9",
+    "Params: ?rects=5000&size=10&speed=0.9&static=1",
   ].join("\n");
 }
 
-export async function runDomBench(options: DomBenchOptions = {}): Promise<void> {
+export function createDomBench(options: DomBenchOptions = {}): BenchHandle {
   const config =
     options.config ?? readBenchConfig({ defaultGpu: false, allowGpuParam: false });
-  const label = options.label ?? "DOM (no Synapse)";
+  const label =
+    options.label ?? (config.static ? "DOM (static)" : "DOM (no Synapse)");
+  const showOverlay = options.showOverlay ?? true;
 
   setPageBackground("#0b0b0f");
 
@@ -51,8 +57,10 @@ export async function runDomBench(options: DomBenchOptions = {}): Promise<void> 
 
   document.body.appendChild(root);
 
-  const overlay = createOverlay();
-  document.body.appendChild(overlay);
+  const overlay = showOverlay ? createOverlay() : null;
+  if (overlay) {
+    document.body.appendChild(overlay);
+  }
 
   const palette = ["#33a0f2", "#f27033", "#33e695", "#f2e533"];
   const elements: HTMLDivElement[] = [];
@@ -94,53 +102,92 @@ export async function runDomBench(options: DomBenchOptions = {}): Promise<void> 
   const frameWindow = createFrameWindow();
   let updateMs = 0;
   let lastOverlayUpdate = 0;
+  let rafId = 0;
+  let running = true;
+  let latestSample: BenchSample = {
+    fps: 0,
+    frameMs: 0,
+    updateMs: 0,
+    nodeCount: elements.length,
+  };
 
   const tick = (): void => {
+    if (!running) {
+      return;
+    }
+
     const frameStart = performance.now();
     const rect = root.getBoundingClientRect();
     const maxX = Math.max(0, rect.width - sizePx);
     const maxY = Math.max(0, rect.height - sizePx);
 
-    for (let i = 0; i < elements.length; i += 1) {
-      const position = positions[i];
-      const velocity = velocities[i];
+    if (!config.static) {
+      for (let i = 0; i < elements.length; i += 1) {
+        const position = positions[i];
+        const velocity = velocities[i];
 
-      position.x += velocity.x;
-      position.y += velocity.y;
+        position.x += velocity.x;
+        position.y += velocity.y;
 
-      if (position.x <= 0 || position.x >= maxX) {
-        velocity.x *= -1;
-        position.x = clamp(position.x, 0, maxX);
+        if (position.x <= 0 || position.x >= maxX) {
+          velocity.x *= -1;
+          position.x = clamp(position.x, 0, maxX);
+        }
+
+        if (position.y <= 0 || position.y >= maxY) {
+          velocity.y *= -1;
+          position.y = clamp(position.y, 0, maxY);
+        }
+
+        elements[i].style.transform = `translate3d(${position.x}px, ${position.y}px, 0)`;
       }
-
-      if (position.y <= 0 || position.y >= maxY) {
-        velocity.y *= -1;
-        position.y = clamp(position.y, 0, maxY);
-      }
-
-      elements[i].style.transform = `translate3d(${position.x}px, ${position.y}px, 0)`;
     }
 
-    updateMs = performance.now() - frameStart;
+    updateMs = config.static ? 0 : performance.now() - frameStart;
     const frameStats = frameWindow.record(frameStart);
 
-    const now = performance.now();
-    if (now - lastOverlayUpdate > 120) {
-      overlay.textContent = formatStats(
-        label,
-        config,
-        updateMs,
-        frameStats.frameMs,
-        frameStats.fps,
-        elements.length,
-        sizePx,
-        rect
-      );
-      lastOverlayUpdate = now;
+    latestSample = {
+      fps: frameStats.fps,
+      frameMs: frameStats.frameMs,
+      updateMs,
+      nodeCount: elements.length,
+    };
+
+    options.onSample?.(latestSample);
+
+    if (overlay) {
+      const now = performance.now();
+      if (now - lastOverlayUpdate > 120) {
+        overlay.textContent = formatStats(
+          label,
+          config,
+          updateMs,
+          frameStats.frameMs,
+          frameStats.fps,
+          elements.length,
+          sizePx,
+          rect
+        );
+        lastOverlayUpdate = now;
+      }
     }
 
-    requestAnimationFrame(tick);
+    rafId = requestAnimationFrame(tick);
   };
 
-  requestAnimationFrame(tick);
+  rafId = requestAnimationFrame(tick);
+
+  return {
+    stop: () => {
+      running = false;
+      cancelAnimationFrame(rafId);
+      root.remove();
+      overlay?.remove();
+    },
+    getLatestSample: () => latestSample,
+  };
+}
+
+export async function runDomBench(options: DomBenchOptions = {}): Promise<void> {
+  createDomBench(options);
 }

@@ -3,12 +3,15 @@ export type BenchConfig = {
   size: number;
   speed: number;
   gpu: boolean;
+  static: boolean;
 };
 
 export type BenchConfigOptions = {
   defaultGpu?: boolean;
   allowGpuParam?: boolean;
   maxRects?: number;
+  defaultStatic?: boolean;
+  allowStaticParam?: boolean;
 };
 
 const DEFAULT_CONFIG: BenchConfig = {
@@ -16,11 +19,26 @@ const DEFAULT_CONFIG: BenchConfig = {
   size: 12,
   speed: 0.9,
   gpu: true,
+  static: false,
 };
 
 export type FrameStats = {
   fps: number;
   frameMs: number;
+};
+
+export type BenchSample = {
+  fps: number;
+  frameMs: number;
+  updateMs: number;
+  nodeCount: number;
+  cpuMs?: number;
+  drawCalls?: number;
+};
+
+export type BenchHandle = {
+  stop: () => void;
+  getLatestSample: () => BenchSample;
 };
 
 export function clamp(value: number, min: number, max: number): number {
@@ -41,12 +59,20 @@ export function readBenchConfig(options: BenchConfigOptions = {}): BenchConfig {
   const maxRects = options.maxRects ?? 50000;
   const defaultGpu = options.defaultGpu ?? DEFAULT_CONFIG.gpu;
   const allowGpuParam = options.allowGpuParam ?? true;
+  const defaultStatic = options.defaultStatic ?? DEFAULT_CONFIG.static;
+  const allowStaticParam = options.allowStaticParam ?? true;
   const gpuParam = params.get("gpu");
   const gpu = allowGpuParam
     ? gpuParam
       ? gpuParam !== "0" && gpuParam !== "false"
       : defaultGpu
     : defaultGpu;
+  const staticParam = params.get("static");
+  const staticMode = allowStaticParam
+    ? staticParam
+      ? staticParam !== "0" && staticParam !== "false"
+      : defaultStatic
+    : defaultStatic;
 
   return {
     rects: Math.floor(
@@ -55,6 +81,7 @@ export function readBenchConfig(options: BenchConfigOptions = {}): BenchConfig {
     size: Math.floor(clamp(parseNumber(params.get("size"), DEFAULT_CONFIG.size), 2, 128)),
     speed: clamp(parseNumber(params.get("speed"), DEFAULT_CONFIG.speed), 0.1, 8),
     gpu,
+    static: staticMode,
   };
 }
 

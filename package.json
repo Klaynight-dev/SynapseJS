@@ -9,7 +9,8 @@
     "build": "bunx vite build",
     "preview": "bunx vite preview",
     "bench": "bunx vite --open /bench.html",
-    "bench:dom": "bunx vite --open /bench-dom.html"
+    "bench:dom": "bunx vite --open /bench-dom.html",
+    "bench:report": "bunx vite --open /bench-report.html"
   },
   "dependencies": {
     "react": "^18.3.1"

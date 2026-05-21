@@ -1,6 +1,21 @@
 import { Color4, SynapseBox, SynapseEngine, Vec2 } from "../synapse-core";
-import { clamp, createOverlay, readBenchConfig, setPageBackground } from "./common";
-import { runDomBench } from "./dom-bench";
+import {
+  BenchConfig,
+  BenchHandle,
+  BenchSample,
+  clamp,
+  createOverlay,
+  readBenchConfig,
+  setPageBackground,
+} from "./common";
+import { createDomBench } from "./dom-bench";
+
+type SynapseBenchOptions = {
+  label?: string;
+  config?: BenchConfig;
+  showOverlay?: boolean;
+  onSample?: (sample: BenchSample) => void;
+};
 
 function formatStats(
   label: string,
@@ -24,19 +39,23 @@ function formatStats(
     `CPU render: ${cpuMs.toFixed(2)} ms`,
     `Update loop: ${updateMs.toFixed(2)} ms`,
     `Canvas: ${Math.round(canvasSize.x)}x${Math.round(canvasSize.y)} px`,
-    "Params: ?rects=5000&size=10&speed=0.9&gpu=1",
+    "Params: ?rects=5000&size=10&speed=0.9&gpu=1&static=1",
   ].join("\n");
 }
 
-async function runSynapseBench(): Promise<void> {
-  const config = readBenchConfig({ defaultGpu: true, allowGpuParam: true });
+export async function createSynapseBench(
+  options: SynapseBenchOptions = {}
+): Promise<BenchHandle> {
+  const config = options.config ?? readBenchConfig({ defaultGpu: true, allowGpuParam: true });
+  const showOverlay = options.showOverlay ?? true;
 
   if (!navigator.gpu) {
-    await runDomBench({
+    return createDomBench({
       label: "DOM (fallback - no WebGPU)",
       config: { ...config, gpu: false },
+      showOverlay,
+      onSample: options.onSample,
     });
-    return;
   }
 
   setPageBackground("#0b0b0f");
@@ -50,8 +69,10 @@ async function runSynapseBench(): Promise<void> {
 
   document.body.appendChild(canvas);
 
-  const overlay = createOverlay();
-  document.body.appendChild(overlay);
+  const overlay = showOverlay ? createOverlay() : null;
+  if (overlay) {
+    document.body.appendChild(overlay);
+  }
 
   let engine: SynapseEngine;
   try {
@@ -59,15 +80,19 @@ async function runSynapseBench(): Promise<void> {
   } catch (error) {
     console.error("Synapse failed to initialize:", error);
     canvas.remove();
-    overlay.remove();
-    await runDomBench({
+    overlay?.remove();
+    return createDomBench({
       label: "DOM (fallback - WebGPU init failed)",
       config: { ...config, gpu: false },
+      showOverlay,
+      onSample: options.onSample,
     });
-    return;
   }
 
   engine.enableStats(true);
+  if (config.static) {
+    engine.setContinuousRender(true);
+  }
   engine.start();
 
   const dpr = window.devicePixelRatio || 1;
@@ -112,21 +137,36 @@ async function runSynapseBench(): Promise<void> {
     velocities.push(velocity);
   }
 
-  const gpuEnabled = config.gpu && engine.enableGpuSimulation(true, velocities);
-  if (!gpuEnabled && config.gpu) {
+  const gpuRequested = config.gpu && !config.static;
+  const gpuEnabled = gpuRequested && engine.enableGpuSimulation(true, velocities);
+  if (!gpuEnabled && gpuRequested) {
     console.warn("GPU simulation unavailable; using CPU updates.");
   }
 
   let updateMs = 0;
   let lastOverlayUpdate = 0;
+  let rafId = 0;
+  let running = true;
+  let latestSample: BenchSample = {
+    fps: 0,
+    frameMs: 0,
+    updateMs: 0,
+    nodeCount: boxes.length,
+    cpuMs: 0,
+    drawCalls: 0,
+  };
 
   const tick = (): void => {
+    if (!running) {
+      return;
+    }
+
     const updateStart = performance.now();
     const bounds = engine.getCanvasSize();
     const maxX = Math.max(0, bounds.x - sizePx);
     const maxY = Math.max(0, bounds.y - sizePx);
 
-    if (!gpuEnabled) {
+    if (!gpuEnabled && !config.static) {
       for (let i = 0; i < boxes.length; i += 1) {
         const position = positions[i];
         const velocity = velocities[i];
@@ -148,34 +188,56 @@ async function runSynapseBench(): Promise<void> {
       }
     }
 
-    updateMs = performance.now() - updateStart;
+    updateMs = config.static ? 0 : performance.now() - updateStart;
 
-    const now = performance.now();
-    if (now - lastOverlayUpdate > 120) {
-      const stats = engine.getFrameStats();
-      const label = gpuEnabled
-        ? "Synapse (WebGPU + GPU sim)"
-        : "Synapse (WebGPU CPU)";
-      overlay.textContent = formatStats(
-        label,
-        config.rects,
-        updateMs,
-        stats.frameMs,
-        stats.fps,
-        stats.cpuMs,
-        stats.drawCalls,
-        stats.nodeCount,
-        bounds
-      );
-      lastOverlayUpdate = now;
+    const stats = engine.getFrameStats();
+    latestSample = {
+      fps: stats.fps,
+      frameMs: stats.frameMs,
+      updateMs,
+      nodeCount: stats.nodeCount,
+      cpuMs: stats.cpuMs,
+      drawCalls: stats.drawCalls,
+    };
+
+    options.onSample?.(latestSample);
+
+    if (overlay) {
+      const now = performance.now();
+      if (now - lastOverlayUpdate > 120) {
+        const label = gpuEnabled
+          ? "Synapse (WebGPU + GPU sim)"
+          : config.static
+            ? "Synapse (WebGPU static)"
+            : "Synapse (WebGPU CPU)";
+        overlay.textContent = formatStats(
+          label,
+          config.rects,
+          updateMs,
+          stats.frameMs,
+          stats.fps,
+          stats.cpuMs,
+          stats.drawCalls,
+          stats.nodeCount,
+          bounds
+        );
+        lastOverlayUpdate = now;
+      }
     }
 
-    requestAnimationFrame(tick);
+    rafId = requestAnimationFrame(tick);
   };
 
-  requestAnimationFrame(tick);
-}
+  rafId = requestAnimationFrame(tick);
 
-runSynapseBench().catch((error) => {
-  console.error("Synapse benchmark failed:", error);
-});
+  return {
+    stop: () => {
+      running = false;
+      cancelAnimationFrame(rafId);
+      engine.destroy();
+      canvas.remove();
+      overlay?.remove();
+    },
+    getLatestSample: () => latestSample,
+  };
+}

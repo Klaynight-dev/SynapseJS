@@ -263,7 +263,7 @@ export class SynapseEngine {
     if (!this.computePipeline) {
       if (!this.computeShaderModule) {
         this.simulateOnGpu = false;
-        this.instanceDirty = true;
+        this.markAllDirty(this.scene.count());
         this.invalidate();
         return false;
       }
@@ -278,7 +278,7 @@ export class SynapseEngine {
         });
       } catch {
         this.simulateOnGpu = false;
-        this.instanceDirty = true;
+        this.markAllDirty(this.scene.count());
         this.invalidate();
         return false;
       }
@@ -303,7 +303,7 @@ export class SynapseEngine {
 
   setVelocities(velocities: Vec2[]): void {
     this.velocityCount = velocities.length;
-    this.ensureInstanceCapacity(velocities.length);
+    this.ensureInstanceCapacity(velocities.length, this.scene.all());
 
     for (let i = 0; i < velocities.length; i += 1) {
       const offset = i * VELOCITY_FLOATS;
@@ -712,13 +712,15 @@ export class SynapseEngine {
     pass.end();
   }
 
-  private ensureInstanceCapacity(required: number): void {
+  private ensureInstanceCapacity(required: number, nodes: RectNode[]): void {
     if (required <= this.instanceCapacity) {
       return;
     }
 
     const nextCapacity = Math.max(required, this.instanceCapacity * 2, 1);
     this.allocateBuffers(nextCapacity);
+    this.forceFullUpload = true;
+    this.markAllDirty(nodes.length);
   }
 
   private destroyBuffers(): void {
@@ -814,6 +816,8 @@ export class SynapseEngine {
       this.device.queue.writeBuffer(this.velocityBuffer, 0, this.velocityData.buffer, 0, byteLength);
     }
 
+    this.forceFullUpload = true;
+    this.clearDirty();
     this.frameIndex = 0;
   }
 
@@ -851,17 +855,25 @@ export class SynapseEngine {
 
     if (this.hoveredId !== null) {
       const previous = this.scene.getById(this.hoveredId);
+      const previousIndex = this.scene.getIndex(this.hoveredId);
       if (previous) {
         previous.isHovered = false;
+        if (previousIndex !== undefined) {
+          this.writeInstanceAt(previousIndex, previous);
+          this.markDirty(previousIndex);
+        }
         previous.onPointerLeave?.({ x: point.x, y: point.y, nodeId: previous.id });
-        this.instanceDirty = true;
       }
     }
 
     if (hit) {
+      const hitIndex = this.scene.getIndex(hit.id);
       hit.isHovered = true;
+      if (hitIndex !== undefined) {
+        this.writeInstanceAt(hitIndex, hit);
+        this.markDirty(hitIndex);
+      }
       hit.onPointerEnter?.({ x: point.x, y: point.y, nodeId: hit.id });
-      this.instanceDirty = true;
     }
 
     this.hoveredId = hitId;
