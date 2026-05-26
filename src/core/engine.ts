@@ -15,6 +15,7 @@ import {
 } from "./constants";
 import { SceneGraph, RectNode } from "./scene-graph";
 import { SynapseBox } from "./box";
+import BufferManager from "./buffer-manager";
 
 export class SynapseEngine {
   private adapter!: GPUAdapter;
@@ -33,6 +34,7 @@ export class SynapseEngine {
   private velocityBuffer!: GPUBuffer;
   private renderBindGroups: GPUBindGroup[] = [];
   private computeBindGroup?: GPUBindGroup;
+  private bufferManager!: BufferManager;
   private frameIndex = 0;
   private format: GPUTextureFormat = "bgra8unorm";
 
@@ -215,14 +217,8 @@ export class SynapseEngine {
     }
 
     const byteLength = velocities.length * VELOCITY_STRIDE;
-    if (byteLength > 0) {
-      this.device.queue.writeBuffer(
-        this.velocityBuffer,
-        0,
-        this.velocityData.buffer,
-        0,
-        byteLength
-      );
+    if (byteLength > 0 && this.bufferManager) {
+      this.bufferManager.writeVelocities(this.velocityData.buffer, byteLength);
     }
   }
 
@@ -460,6 +456,7 @@ export class SynapseEngine {
       },
     });
 
+    this.bufferManager = new BufferManager(this.device, this.renderBindGroupLayout, this.computeBindGroupLayout);
     this.allocateBuffers(1);
 
     this.canvas.addEventListener("pointermove", this.onPointerMove);
@@ -726,16 +723,8 @@ export class SynapseEngine {
   }
 
   private destroyBuffers(): void {
-    for (const buffer of this.instanceBuffers) {
-      buffer.destroy();
-    }
-
-    for (const buffer of this.globalUniformBuffers) {
-      buffer.destroy();
-    }
-
-    if (this.velocityBuffer) {
-      this.velocityBuffer.destroy();
+    if (this.bufferManager) {
+      this.bufferManager.destroy();
     }
 
     this.instanceBuffers = [];
@@ -761,62 +750,19 @@ export class SynapseEngine {
       );
     }
 
-    this.velocityBuffer = this.device.createBuffer({
-      size: this.velocityData.byteLength,
-      usage: BufferUsage.STORAGE | BufferUsage.COPY_DST,
-    });
+    // Delegate actual GPU buffer creation to BufferManager
+    this.bufferManager.allocate(this.instanceData.byteLength, GLOBAL_UNIFORM_SIZE, this.velocityData.byteLength);
 
-    for (let i = 0; i < FRAME_BUFFERS; i += 1) {
-      const globalUniformBuffer = this.device.createBuffer({
-        size: GLOBAL_UNIFORM_SIZE,
-        usage: BufferUsage.UNIFORM | BufferUsage.COPY_DST,
-      });
-
-      const instanceBuffer = this.device.createBuffer({
-        size: this.instanceData.byteLength,
-        usage: BufferUsage.STORAGE | BufferUsage.COPY_DST,
-      });
-
-      const renderBindGroup = this.device.createBindGroup({
-        layout: this.renderBindGroupLayout,
-        entries: [
-          {
-            binding: 0,
-            resource: { buffer: globalUniformBuffer },
-          },
-          {
-            binding: 1,
-            resource: { buffer: instanceBuffer },
-          },
-        ],
-      });
-
-      this.globalUniformBuffers.push(globalUniformBuffer);
-      this.instanceBuffers.push(instanceBuffer);
-      this.renderBindGroups.push(renderBindGroup);
-    }
-
-    this.computeBindGroup = this.device.createBindGroup({
-      layout: this.computeBindGroupLayout,
-      entries: [
-        {
-          binding: 0,
-          resource: { buffer: this.globalUniformBuffers[0] },
-        },
-        {
-          binding: 1,
-          resource: { buffer: this.instanceBuffers[0] },
-        },
-        {
-          binding: 2,
-          resource: { buffer: this.velocityBuffer },
-        },
-      ],
-    });
+    // Mirror buffers locally for existing code paths
+    this.instanceBuffers = this.bufferManager.instanceBuffers;
+    this.globalUniformBuffers = this.bufferManager.globalUniformBuffers;
+    this.renderBindGroups = this.bufferManager.renderBindGroups;
+    this.velocityBuffer = this.bufferManager.velocityBuffer;
+    this.computeBindGroup = this.bufferManager.computeBindGroup;
 
     if (this.velocityCount > 0) {
       const byteLength = this.velocityCount * VELOCITY_STRIDE;
-      this.device.queue.writeBuffer(this.velocityBuffer, 0, this.velocityData.buffer, 0, byteLength);
+      this.bufferManager.writeVelocities(this.velocityData.buffer, byteLength);
     }
 
     this.invalidateRenderBundles();
