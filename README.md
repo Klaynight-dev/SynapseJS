@@ -68,36 +68,60 @@ http://localhost:5173/bench-report.html?rects=5000&size=10&speed=0.9&gpu=1&stati
 ## Synapse Bench Report (2026-05-21)
 
 ```yml
-Config: rects=2500, size=12, speed=0.9, static=false, gpu=true
-Duration: 4000ms, Warmup: 1000ms
+═══════════════════════════════════════════════════
+             SYNAPSE BENCH REPORT
+═══════════════════════════════════════════════════
 
-Synapse:
-  Samples: 39
-  Avg FPS: 182.5
-  Median Frame: 7.00 ms
-  P95 Frame: 11.00 ms
-  P99 Frame: 16.00 ms
-  Min Frame: 1.00 ms
-  Max Frame: 16.00 ms
-  Std Dev Frame: 2.76 ms
-  Avg Update: 0.00 ms
-  Avg CPU Render: 0.36 ms
+Config: 10000 rects, 12px, speed=0.9
+        gpu=true, static=false
+        duration=6000ms, warmup=2000ms
+
+───────────────────────────────────────────────────
+
+Synapse (WebGPU):
+  Samples: 32
+  Avg FPS: 857.6
+  Median Frame: 1.02 ms
+  P95 Frame: 8.42 ms
+  P99 Frame: 9.10 ms
+  Min/Max Frame: 0.95 / 9.10 ms
+  Std Dev: 2.39 ms
+  Avg Update: 2.05 ms
+  Avg CPU Work: 2.05 ms
   Avg Draw Calls: 1.0
+  Est. Max FPS: 489 (1000/cpuMs)
+  Frame Budget Used: 12.3%
 
 DOM:
-  Samples: 32
-  Avg FPS: 26.6
-  Median Frame: 38.00 ms
-  P95 Frame: 52.00 ms
-  P99 Frame: 56.00 ms
-  Min Frame: 25.00 ms
-  Max Frame: 56.00 ms
-  Std Dev Frame: 8.66 ms
-  Avg Update: 13.13 ms
+  Samples: 31
+  Avg FPS: 13.9
+  Median Frame: 65.44 ms
+  P95 Frame: 165.15 ms
+  P99 Frame: 168.37 ms
+  Min/Max Frame: 61.30 / 168.37 ms
+  Std Dev: 32.53 ms
+  Avg Update: 16.31 ms
+  Avg CPU Work: 16.31 ms
+  Est. Max FPS: 61 (1000/cpuMs)
+  Frame Budget Used: 97.9%
 
-Synapse / DOM FPS ratio: 6.87x
+───────────────────────────────────────────────────
+                  COMPARISON
+───────────────────────────────────────────────────
 
-Params: ?rects=5000&size=10&speed=0.9&gpu=1&static=0&duration=4000&warmup=1000&format=json
+  FPS ratio:          61.87x
+  CPU time ratio:     7.97x faster
+  Synapse CPU work:   2.05 ms/frame
+  DOM CPU work:       16.31 ms/frame
+
+  Est. max FPS (Synapse): 489
+  Est. max FPS (DOM):     61
+  Estimated FPS ratio:    7.97x
+
+═══════════════════════════════════════════════════
+
+Params: ?rects=10000&size=10&speed=0.9&gpu=1&static=0
+        &duration=6000&warmup=2000&format=json|csv|text
 ```
 
 ## Architecture
