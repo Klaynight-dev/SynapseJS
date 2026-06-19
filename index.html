@@ -4,6 +4,36 @@
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
   <title>Synapse.js — Zero-DOM WebGPU Rendering</title>
+
+  <!-- SEO -->
+  <meta name="description" content="Synapse.js est un moteur de rendu Zero-DOM pour le web. Il transforme n'importe quel framework en cible WebGPU avec un scene graph en RAM et un pipeline GPU pur. 61x plus rapide que le DOM."/>
+  <meta name="keywords" content="synapse, webgpu, zero-dom, rendering engine, gpu, javascript, typescript, scene graph, instancing, react, svelte, angular"/>
+  <meta name="author" content="Klaynight"/>
+  <meta name="robots" content="index, follow"/>
+  <link rel="canonical" href="https://klaynight-dev.github.io/SynapseJS/"/>
+
+  <!-- Open Graph -->
+  <meta property="og:type" content="website"/>
+  <meta property="og:title" content="Synapse.js — Zero-DOM WebGPU Rendering Engine"/>
+  <meta property="og:description" content="Moteur de rendu Zero-DOM pour le web. Scene graph en RAM, pipeline GPU pur, 1 draw call pour des milliers d'elements. 61x plus rapide que le DOM."/>
+  <meta property="og:url" content="https://klaynight-dev.github.io/SynapseJS/"/>
+  <meta property="og:image" content="https://klaynight-dev.github.io/SynapseJS/assets/synapse-logo.svg"/>
+  <meta property="og:site_name" content="Synapse.js"/>
+  <meta property="og:locale" content="fr_FR"/>
+
+  <!-- Twitter Card -->
+  <meta name="twitter:card" content="summary_large_image"/>
+  <meta name="twitter:title" content="Synapse.js — Zero-DOM WebGPU Rendering"/>
+  <meta name="twitter:description" content="Moteur de rendu Zero-DOM WebGPU. 857 FPS pour 10k elements, 1 draw call, 61x plus rapide que le DOM."/>
+  <meta name="twitter:image" content="https://klaynight-dev.github.io/SynapseJS/assets/synapse-logo.svg"/>
+
+  <!-- Theme -->
+  <meta name="theme-color" content="#f5f0e8"/>
+  <meta name="color-scheme" content="light"/>
+
+  <!-- Favicon -->
+  <link rel="icon" type="image/svg+xml" href="/assets/synapse-logo.svg"/>
+
   <link rel="preconnect" href="https://fonts.googleapis.com"/>
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
   <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@400;500;600;700&family=Patrick+Hand&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
@@ -277,132 +307,6 @@
   <div class="footer">&copy; 2026 <a href="https://github.com/Klaynight-dev/SynapseJS" target="_blank">Synapse.js</a> &mdash; Zero-DOM WebGPU rendering core.</div>
 </div>
 
-<script>
-// ═══════════════════════════════════════
-//  1. SCROLL PROGRESS BAR
-// ═══════════════════════════════════════
-const progressBar=document.getElementById('scroll-progress');
-function updateProgress(){
-  const h=document.documentElement.scrollHeight-window.innerHeight;
-  progressBar.style.width=(h>0?(window.scrollY/h)*100:0)+'%';
-}
-window.addEventListener('scroll',updateProgress,{passive:true});
-updateProgress();
-
-// ═══════════════════════════════════════
-//  2. SCROLL REVEAL (with stagger)
-// ═══════════════════════════════════════
-const revealObs=new IntersectionObserver(entries=>{
-  entries.forEach(e=>{if(e.isIntersecting){e.target.classList.add('vis');revealObs.unobserve(e.target)}});
-},{threshold:.12,rootMargin:'0px 0px -40px 0px'});
-document.querySelectorAll('.rv,.rv-left,.rv-right,.rv-scale').forEach(e=>revealObs.observe(e));
-
-// ═══════════════════════════════════════
-//  3. COUNTER ANIMATION (on scroll)
-// ═══════════════════════════════════════
-const countEls=document.querySelectorAll('[data-count]');
-const countObs=new IntersectionObserver(entries=>{
-  entries.forEach(e=>{
-    if(!e.isIntersecting)return;
-    countObs.unobserve(e.target);
-    const el=e.target;
-    const target=parseFloat(el.dataset.count);
-    const suffix=el.dataset.suffix||'';
-    const decimals=parseInt(el.dataset.decimals||'0');
-    const duration=1200;
-    const start=performance.now();
-    function tick(now){
-      const t=Math.min((now-start)/duration,1);
-      const ease=1-Math.pow(1-t,3);
-      const val=ease*target;
-      el.textContent=(decimals>0?val.toFixed(decimals):Math.round(val))+suffix;
-      if(t<1)requestAnimationFrame(tick);
-    }
-    requestAnimationFrame(tick);
-  });
-},{threshold:.5});
-countEls.forEach(e=>countObs.observe(e));
-
-// ═══════════════════════════════════════
-//  4. ANIMATED BAR FILLS (on scroll)
-// ═══════════════════════════════════════
-const barEls=document.querySelectorAll('.bar-anim');
-const barObs=new IntersectionObserver(entries=>{
-  entries.forEach(e=>{
-    if(!e.isIntersecting)return;
-    barObs.unobserve(e.target);
-    const el=e.target;
-    requestAnimationFrame(()=>{
-      el.classList.remove('bar-anim');
-      el.style.width=el.dataset.bar;
-    });
-  });
-},{threshold:.3});
-barEls.forEach(e=>barObs.observe(e));
-
-// ═══════════════════════════════════════
-//  5. PARALLAX
-// ═══════════════════════════════════════
-const parallaxEls=document.querySelectorAll('.parallax');
-let ticking=false;
-function updateParallax(){
-  const scrollTop=window.scrollY;
-  parallaxEls.forEach(el=>{
-    const speed=parseFloat(el.dataset.speed||'.2');
-    const rect=el.getBoundingClientRect();
-    const offset=(rect.top+scrollTop)*speed;
-    el.style.transform='translateY('+(-offset*.15).toFixed(1)+'px)';
-  });
-  ticking=false;
-}
-window.addEventListener('scroll',()=>{if(!ticking){ticking=true;requestAnimationFrame(updateParallax)}},{passive:true});
-
-// ═══════════════════════════════════════
-//  6. NAV SHRINK ON SCROLL
-// ═══════════════════════════════════════
-const nav=document.querySelector('.nav');
-window.addEventListener('scroll',()=>{
-  nav.classList.toggle('scrolled',window.scrollY>50);
-},{passive:true});
-
-// ═══════════════════════════════════════
-//  7. PM TOGGLE
-// ═══════════════════════════════════════
-const cmds={
-  bun:['bun install','bun run dev','bun run bench','bun run bench:report'],
-  pnpm:['pnpm install','pnpm dev','pnpm bench','pnpm bench:report'],
-  npm:['npm install','npm run dev','npm run bench','npm run bench:report'],
-  yarn:['yarn','yarn dev','yarn bench','yarn bench:report'],
-};
-document.getElementById('pm-toggle').addEventListener('click',e=>{
-  const btn=e.target.closest('.pm-btn');if(!btn)return;
-  const pm=btn.dataset.pm;
-  document.querySelectorAll('.pm-btn').forEach(b=>b.classList.remove('active'));
-  btn.classList.add('active');
-  const c=cmds[pm];
-  document.getElementById('cmd-install').textContent=c[0];
-  document.getElementById('cmd-dev').textContent=c[1];
-  document.getElementById('cmd-bench').textContent=c[2];
-  document.getElementById('cmd-report').textContent=c[3];
-});
-
-// ═══════════════════════════════════════
-//  8. SYNAPSE DEMO
-// ═══════════════════════════════════════
-(async()=>{
-  const canvas=document.getElementById('demo-canvas');
-  if(!navigator.gpu){
-    canvas.parentElement.innerHTML='<div class="demo-nope">WebGPU non disponible dans ce navigateur.<br>Utilisez Chrome 113+, Edge 113+ ou Firefox Nightly.</div>';
-    return;
-  }
-  try{
-    const{mountDemo}=await import('/src/landing.ts');
-    await mountDemo(canvas);
-  }catch(err){
-    console.error('Demo mount failed:',err);
-    document.getElementById('demo-fps').textContent='Erreur: '+err.message;
-  }
-})();
-</script>
+<script type="module" src="/src/landing-main.ts"></script>
 </body>
 </html>
