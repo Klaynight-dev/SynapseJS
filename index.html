@@ -1,11 +1,408 @@
 <!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Synapse.js PoC</title>
-  </head>
-  <body>
-    <script type="module" src="/src/index.ts"></script>
-  </body>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>Synapse.js — Zero-DOM WebGPU Rendering</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@400;500;600;700&family=Patrick+Hand&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="/src/landing.css"/>
+</head>
+<body>
+<div class="scroll-progress" id="scroll-progress"></div>
+<div class="container">
+
+  <!-- ── NAV ── -->
+  <nav class="nav">
+    <div class="tape" style="width:70px;top:-9px;left:60px;transform:rotate(-2deg)"></div>
+    <div class="tape" style="width:70px;top:-9px;right:80px;transform:rotate(3deg)"></div>
+    <a href="#" class="nav-logo">
+      <img src="assets/synapse-logo.svg" alt="Synapse.js Logo" height="75"/>
+    </a>
+    <ul class="nav-links">
+      <li><a href="#features" class="hide-m">Features</a></li>
+      <li><a href="#demo" class="hide-m">Demo</a></li>
+      <li><a href="#benchmarks" class="hide-m">Benchmarks</a></li>
+      <li><a href="#quickstart" class="hide-m">Quickstart</a></li>
+      <li><a href="https://github.com/Klaynight-dev/SynapseJS" class="nav-gh" target="_blank"><svg viewBox="0 0 24 24"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>GitHub</a></li>
+    </ul>
+  </nav>
+
+  <!-- ── HERO ── -->
+  <div class="grid2 mb-lg">
+    <div class="postit p-yellow hero-postit rv-left">
+      <div class="pin pin-r" style="top:-6px;left:18px"></div>
+      <div class="tape" style="width:70px;top:-9px;right:28px;transform:rotate(-4deg)"></div>
+      <h1>Le moteur de rendu <span class="sketch-ul">sans DOM</span> pour le web</h1>
+      <p class="desc">Transforme n'importe quel framework en cible WebGPU. Scene graph en RAM, pipeline GPU pur, 1 draw call pour des milliers d'elements.</p>
+      <div class="btns">
+        <a href="#quickstart" class="btn-dark"><svg viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></svg>Demarrer</a>
+        <a href="#benchmarks" class="btn-out"><svg viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>Benchmarks</a>
+      </div>
+      <span class="margin-note" style="bottom:8px;right:12px;transform:rotate(-8deg)">v0.3.0 !</span>
+    </div>
+    <div class="postit p-pink stats-postit rv-right">
+      <div class="pin pin-b" style="top:-6px;right:22px"></div>
+      <svg class="clip" style="top:-14px;left:36px" width="22" height="44" viewBox="0 0 22 44" fill="none"><path d="M5 2v28a5 5 0 0010 0V9a3.5 3.5 0 00-7 0v18" stroke="#94a3b8" stroke-width="1.5" stroke-linecap="round"/></svg>
+      <h2>Les chiffres</h2>
+      <div class="stat-row"><span class="stat-lbl">FPS Synapse</span><span class="stat-val circle-m" data-count="857" data-suffix="">0</span></div>
+      <div class="stat-row"><span class="stat-lbl">FPS DOM</span><span class="stat-val strike" data-count="13.9" data-suffix="" data-decimals="1">0</span></div>
+      <div class="stat-row"><span class="stat-lbl">Ratio vitesse</span><span class="stat-val" style="color:var(--red)" data-count="61" data-suffix="x">0</span></div>
+      <div class="stat-row"><span class="stat-lbl">Draw calls</span><span class="stat-val" data-count="1" data-suffix="">0</span></div>
+      <div class="stat-row"><span class="stat-lbl">Frame budget</span><span class="stat-val" data-count="12" data-suffix="%">0</span></div>
+      <span class="margin-note" style="bottom:8px;left:12px;transform:rotate(5deg)">insane &rarr;</span>
+    </div>
+  </div>
+
+  <div class="coffee parallax" style="top:360px;right:25px" data-speed="0.3"></div>
+
+  <!-- ── FEATURES ── -->
+  <div id="features" class="mb-lg">
+    <div class="stitle">Features</div>
+    <div class="grid4">
+      <div class="postit p-blue feat rv rv-d1"><div class="pin pin-y" style="top:-6px;left:50%;margin-left:-8px"></div>
+        <h3><span class="ic"><svg viewBox="0 0 24 24" stroke="#1e40af"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg></span>Zero-DOM</h3>
+        <p>Aucun layout browser, aucun style recalcul, aucune inflation DOM. Le rendu contourne entierement le moteur CSS.</p></div>
+      <div class="postit p-purple feat rv rv-d2"><div class="tape" style="width:65px;top:-9px;left:18px;transform:rotate(2deg)"></div>
+        <h3><span class="ic"><svg viewBox="0 0 24 24" stroke="#6d28d9"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M9 9h6v6H9z"/><path d="M9 1v3M15 1v3M9 20v3M15 20v3M1 9h3M1 15h3M20 9h3M20 15h3"/></svg></span>GPU Instancing</h3>
+        <p>Un seul draw call pour des milliers d'elements. Le scene graph en RAM alimente directement le pipeline WebGPU.</p></div>
+      <div class="postit p-green feat rv rv-d3"><div class="pin pin-r" style="top:-6px;right:18px"></div>
+        <h3><span class="ic"><svg viewBox="0 0 24 24" stroke="#15803d"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg></span>Agnostique</h3>
+        <p>Adapters pour React, Svelte, Angular et Vanilla JS. Props strictes et type-safe pour chaque framework.</p></div>
+      <div class="postit p-orange feat rv rv-d4"><div class="tape" style="width:65px;top:-9px;right:14px;transform:rotate(-3deg)"></div>
+        <h3><span class="ic"><svg viewBox="0 0 24 24" stroke="#c2410c"><path d="M18 20V10M12 20V4M6 20v-4"/></svg></span>Bench integre</h3>
+        <p>Benchmark complet DOM vs Synapse avec rapports JSON/CSV. Stats GPU, CPU, frame budget et percentiles.</p></div>
+    </div>
+  </div>
+
+  <!-- ── HOW IT WORKS ── -->
+  <div class="mb-lg">
+    <div class="stitle">Comment ca marche</div>
+    <div class="grid3">
+      <div class="step-card rv"><div class="tape" style="width:60px;top:-9px;left:18px;transform:rotate(2deg)"></div><div class="step-num">1</div><h3>Scene Graph</h3><p>Vos composants declarent des nodes dans un arbre en RAM &mdash; aucun DOM cree.</p></div>
+      <div class="step-card rv"><div class="pin pin-g" style="top:-6px;right:14px"></div><div class="step-num">2</div><h3>Buffer GPU</h3><p>Le scene graph est serialise dans des buffers GPU via un BufferManager optimise.</p></div>
+      <div class="step-card rv"><div class="tape" style="width:60px;top:-9px;left:28px;transform:rotate(-2deg)"></div><div class="step-num">3</div><h3>1 Draw Call</h3><p>Tout est rendu en un seul instanced draw call WebGPU. 857 FPS pour 10k elements.</p></div>
+    </div>
+  </div>
+
+  <!-- ── SCROLLYTELLING: DOM → GPU ── -->
+  <div class="mb-lg" id="pipeline">
+    <div class="stitle rv-scale">Le parcours d'un pixel</div>
+    <div class="pipeline-flow">
+
+      <div class="postit p-pink pipe-card rv-left">
+        <div class="pin pin-r" style="top:-6px;left:18px"></div>
+        <div class="pipe-step-num" style="background:#dc2626">1</div>
+        <h3>Le probleme : le DOM</h3>
+        <p>Chaque element passe par HTML → CSSOM → Layout → Paint → Composite. Pour 10k elements le navigateur tombe a <strong class="strike">13 FPS</strong>.</p>
+        <div class="pipe-code"><code>&lt;div&gt; × 10 000 → layout recalc → 65ms/frame</code></div>
+      </div>
+
+      <div class="pipe-arrow rv">
+        <svg width="48" height="48" viewBox="0 0 48 48" fill="none"><path d="M24 6 Q16 20 24 28 T24 42" stroke="#94a3b8" stroke-width="2.5" stroke-dasharray="4 3" stroke-linecap="round"/><path d="M19 36 L24 44 L29 36" fill="#94a3b8"/></svg>
+      </div>
+
+      <div class="postit p-blue pipe-card rv-right">
+        <div class="tape" style="width:60px;top:-9px;right:20px;transform:rotate(-3deg)"></div>
+        <div class="pipe-step-num" style="background:#2563eb">2</div>
+        <h3>Scene Graph en RAM</h3>
+        <p>Synapse remplace le DOM par un <strong>arbre de nodes en memoire</strong>. Pas de CSS ni de layout. Juste des positions et couleurs dans un Float32Array.</p>
+        <div class="pipe-code"><code>engine.createBox({ position, size, color })</code></div>
+      </div>
+
+      <div class="pipe-arrow rv">
+        <svg width="48" height="48" viewBox="0 0 48 48" fill="none"><path d="M24 6 Q32 20 24 28 T24 42" stroke="#94a3b8" stroke-width="2.5" stroke-dasharray="4 3" stroke-linecap="round"/><path d="M19 36 L24 44 L29 36" fill="#94a3b8"/></svg>
+      </div>
+
+      <div class="postit p-green pipe-card rv-left">
+        <div class="pin pin-g" style="top:-6px;right:18px"></div>
+        <div class="pipe-step-num" style="background:#15803d">3</div>
+        <h3>Buffer GPU</h3>
+        <p>Le BufferManager serialise l'arbre en <strong>buffers GPU</strong>. Chaque node = 24 floats. Un seul <code>writeBuffer()</code> envoie tout au GPU.</p>
+        <div class="pipe-code"><code>device.queue.writeBuffer(instanceBuffer, data)</code></div>
+      </div>
+
+      <div class="pipe-arrow rv">
+        <svg width="48" height="48" viewBox="0 0 48 48" fill="none"><path d="M24 6 Q16 20 24 28 T24 42" stroke="#94a3b8" stroke-width="2.5" stroke-dasharray="4 3" stroke-linecap="round"/><path d="M19 36 L24 44 L29 36" fill="#94a3b8"/></svg>
+      </div>
+
+      <div class="postit p-yellow pipe-card rv-right">
+        <div class="tape" style="width:65px;top:-9px;left:20px;transform:rotate(2deg)"></div>
+        <div class="pipe-step-num" style="background:var(--ink)">4</div>
+        <h3>1 Draw Call → <span style="color:var(--red)">857 FPS</span></h3>
+        <p>WebGPU dessine 10 000 elements en <strong>1 instanced draw call</strong>. Frame budget a 12%, CPU libre. <strong style="color:var(--red)">61x</strong> plus rapide que le DOM.</p>
+        <div class="pipe-code"><code>pass.draw(6, 10000, 0, 0) // 1 call, c'est tout</code></div>
+        <span class="margin-note" style="bottom:8px;right:16px;transform:rotate(-6deg)">bye DOM</span>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ── LIVE DEMO ── -->
+  <div id="demo" class="demo-section mb-lg">
+    <div class="stitle">Demo live</div>
+    <div class="postit p-yellow" style="padding:1.25rem;transform:rotate(.3deg)">
+      <div class="pin pin-b" style="top:-6px;left:50%;margin-left:-8px"></div>
+      <p style="font-family:var(--hand2);font-size:1.05rem;color:var(--sub);margin-bottom:.75rem;text-align:center">200 rectangles animes en temps reel via Synapse WebGPU &mdash; hover et cliquez pour changer les couleurs</p>
+      <div class="demo-wrap">
+        <div class="demo-bar"><span class="demo-dot r"></span><span class="demo-dot y"></span><span class="demo-dot g"></span><span>synapse-demo.gpu</span></div>
+        <canvas id="demo-canvas"></canvas>
+        <div id="demo-fps">Chargement...</div>
+        <div class="demo-label">WebGPU &middot; 1 draw call</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── BENCHMARKS ── -->
+  <div id="benchmarks" class="grid2 mb-lg">
+    <div class="bench-paper rv">
+      <div class="tape" style="width:70px;top:-9px;left:50%;margin-left:-35px;transform:rotate(1deg)"></div>
+      <h2><svg viewBox="0 0 24 24"><path d="M14.5 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/></svg>Bench Report</h2>
+      <p class="bench-sub">10 000 rects &bull; 12px &bull; compute GPU &bull; 6s run</p>
+      <table class="btable">
+        <thead><tr><th>Metric</th><th>Synapse</th><th>DOM</th></tr></thead>
+        <tbody>
+          <tr><td>Avg FPS</td><td class="v-s">857.6</td><td class="v-d">13.9</td></tr>
+          <tr><td>Median Frame</td><td class="v-s">1.02 ms</td><td class="v-d">65.44 ms</td></tr>
+          <tr><td>P95 Frame</td><td class="v-s">8.42 ms</td><td class="v-d">165.15 ms</td></tr>
+          <tr><td>P99 Frame</td><td class="v-s">9.10 ms</td><td class="v-d">168.37 ms</td></tr>
+          <tr><td>CPU Work</td><td class="v-s">2.05 ms</td><td class="v-d">16.31 ms</td></tr>
+          <tr><td>Frame Budget</td><td class="v-s">12.3%</td><td class="v-d">97.9%</td></tr>
+        </tbody>
+      </table>
+      <span class="margin-note" style="bottom:12px;right:12px;transform:rotate(-10deg)">61x !!</span>
+    </div>
+    <div class="postit p-yellow bars-postit rv">
+      <div class="pin pin-g" style="top:-6px;left:50%;margin-left:-8px"></div>
+      <h3>FPS Comparison</h3>
+      <div class="bar-g"><div class="bar-lbl"><span>Synapse</span><strong>857.6 fps</strong></div><div class="bar-track"><div class="bar-fill bar-syn bar-anim" data-bar="100%"></div></div></div>
+      <div class="bar-g"><div class="bar-lbl"><span>DOM</span><strong style="color:var(--red)">13.9 fps</strong></div><div class="bar-track"><div class="bar-fill bar-dom bar-anim" data-bar="1.6%"></div></div></div>
+      <div style="margin-top:1.5rem;padding-top:1rem;border-top:1px dashed rgba(0,0,0,.15)">
+        <h3>CPU Time / frame</h3>
+        <div class="bar-g" style="margin-top:.75rem"><div class="bar-lbl"><span>Synapse</span><strong>2.05 ms</strong></div><div class="bar-track"><div class="bar-fill bar-syn bar-anim" data-bar="12.5%"></div></div></div>
+        <div class="bar-g"><div class="bar-lbl"><span>DOM</span><strong style="color:var(--red)">16.31 ms</strong></div><div class="bar-track"><div class="bar-fill bar-dom bar-anim" data-bar="100%"></div></div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="coffee" style="bottom:1400px;left:40px"></div>
+
+  <!-- ── QUICKSTART ── -->
+  <div id="quickstart" class="mb-lg">
+    <div class="stitle">Quickstart</div>
+    <div class="qs-grid">
+      <div>
+        <!-- PM Toggle -->
+        <div class="pm-toggle" id="pm-toggle">
+          <button class="pm-btn active" data-pm="bun">bun</button>
+          <button class="pm-btn" data-pm="pnpm">pnpm</button>
+          <button class="pm-btn" data-pm="npm">npm</button>
+          <button class="pm-btn" data-pm="yarn">yarn</button>
+        </div>
+        <!-- Terminal -->
+        <div class="term rv">
+          <div class="term-bar"><span class="td td-r"></span><span class="td td-y"></span><span class="td td-g"></span><span class="tt">~/SynapseJS</span></div>
+          <div class="term-body"><pre id="term-pre"><span class="c"># Clone le repo</span>
+<span class="p">$</span> <span class="a">git clone https://github.com/Klaynight-dev/SynapseJS.git</span>
+<span class="p">$</span> <span class="a">cd SynapseJS</span>
+
+<span class="c"># Installe les dependances</span>
+<span class="p">$</span> <span class="a" id="cmd-install">bun install</span>
+
+<span class="c"># Lance le dev server</span>
+<span class="p">$</span> <span class="a" id="cmd-dev">bun run dev</span>
+<span class="o">  VITE v6.x  ready in 120ms</span>
+<span class="o">  -> Local: </span><span class="u">http://localhost:5173/</span>
+
+<span class="c"># Benchmark Synapse vs DOM</span>
+<span class="p">$</span> <span class="a" id="cmd-bench">bun run bench</span>
+
+<span class="c"># Rapport comparatif complet</span>
+<span class="p">$</span> <span class="a" id="cmd-report">bun run bench:report</span></pre></div>
+        </div>
+
+        <!-- Architecture -->
+        <div class="postit p-blue rv" style="margin-top:1.5rem;padding:2rem;transform:rotate(-1deg)">
+          <div class="pin pin-y" style="top:-6px;right:18px"></div>
+          <div class="tape" style="width:65px;top:-9px;left:14px;transform:rotate(3deg)"></div>
+          <h3 style="font-size:1.4rem;font-weight:700;margin-bottom:1rem;text-decoration:underline;text-underline-offset:3px">Architecture</h3>
+          <ul class="arch-list">
+            <li><svg viewBox="0 0 24 24" stroke="#0369a1"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg><span><strong>Synapse-Core</strong> &mdash; Init WebGPU, scene graph RAM, instancing, raycaster</span></li>
+            <li><svg viewBox="0 0 24 24" stroke="#7c3aed"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg><span><strong>Synapse-Shaders</strong> &mdash; WGSL primitives UI, SDF texte, effets visuels</span></li>
+            <li><svg viewBox="0 0 24 24" stroke="#15803d"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg><span><strong>Synapse-Adapters</strong> &mdash; React / Svelte / Angular / Vanilla</span></li>
+            <li><svg viewBox="0 0 24 24" stroke="#c2410c"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg><span><strong>UI Styles</strong> &mdash; Radius, gradient, shadow &mdash; tout via WGSL</span></li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- Guide -->
+      <div class="postit p-green qs-postit rv" style="transform:rotate(-.8deg)">
+        <svg class="clip" style="top:-14px;right:32px" width="22" height="44" viewBox="0 0 22 44" fill="none"><path d="M5 2v28a5 5 0 0010 0V9a3.5 3.5 0 00-7 0v18" stroke="#94a3b8" stroke-width="1.5" stroke-linecap="round"/></svg>
+        <h3><svg viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg>Guide pas a pas</h3>
+        <div class="qs-step"><div class="qs-n">1</div><div><h4>Prerequis</h4><p>Un runtime JS (<code>bun</code>, <code>pnpm</code>, <code>npm</code> ou <code>yarn</code>) et un navigateur avec WebGPU (Chrome 113+, Edge 113+, Firefox Nightly).</p></div></div>
+        <div class="qs-step"><div class="qs-n">2</div><div><h4>Cloner & installer</h4><p>Clone le repo et lance l'install. Toutes les deps sont minimales.</p></div></div>
+        <div class="qs-step"><div class="qs-n">3</div><div><h4>Dev server</h4><p>Lance le serveur Vite &mdash; la demo vanilla s'ouvre sur <code>localhost:5173</code>.</p></div></div>
+        <div class="qs-step"><div class="qs-n">4</div><div><h4>Benchmarks</h4><p>Lance <code>bench</code> pour Synapse seul ou <code>bench:report</code> pour le comparatif DOM vs Synapse complet.</p></div></div>
+        <div class="qs-step"><div class="qs-n">5</div><div><h4>Parametrer les benchmarks</h4><p>URL params : <code>?rects=5000&amp;size=10&amp;speed=0.9&amp;gpu=1</code>. Aussi <code>&amp;format=json</code> ou <code>csv</code> pour l'export.</p></div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── COMPATIBILITY ── -->
+  <div class="mb-lg">
+    <div class="stitle">Compatibilite</div>
+    <div class="compat-grid">
+      <div class="compat-c rv"><div class="tape" style="width:55px;top:-9px;left:50%;margin-left:-27px;transform:rotate(-1deg)"></div>
+        <svg viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 12l2 2 4-4"/></svg><h4>React</h4><p>Adapter + hooks</p></div>
+      <div class="compat-c rv"><div class="pin pin-r" style="top:-6px;right:12px"></div>
+        <svg viewBox="0 0 24 24" fill="none" stroke="#ea580c" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 12l2 2 4-4"/></svg><h4>Svelte</h4><p>Adapter natif</p></div>
+      <div class="compat-c rv"><div class="tape" style="width:55px;top:-9px;left:18px;transform:rotate(2deg)"></div>
+        <svg viewBox="0 0 24 24" fill="none" stroke="#dc2626" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 12l2 2 4-4"/></svg><h4>Angular</h4><p>Adapter bridge</p></div>
+      <div class="compat-c rv"><div class="pin pin-b" style="top:-6px;left:12px"></div>
+        <svg viewBox="0 0 24 24" fill="none" stroke="#15803d" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 12l2 2 4-4"/></svg><h4>Vanilla JS</h4><p>Zero dependance</p></div>
+    </div>
+  </div>
+
+  <!-- ── CTA ── -->
+  <div class="cta">
+    <h2>Pret a <span class="strike">utiliser le DOM</span> passer au GPU ?</h2>
+    <p>Testez Synapse.js et decouvrez un rendu web sans compromis.</p>
+    <div class="btns" style="justify-content:center">
+      <a href="https://github.com/Klaynight-dev/SynapseJS" class="btn-dark" target="_blank"><svg viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>Voir sur GitHub</a>
+      <a href="#quickstart" class="btn-out"><svg viewBox="0 0 24 24"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>Demarrer maintenant</a>
+    </div>
+  </div>
+
+  <div class="footer">&copy; 2026 <a href="https://github.com/Klaynight-dev/SynapseJS" target="_blank">Synapse.js</a> &mdash; Zero-DOM WebGPU rendering core.</div>
+</div>
+
+<script>
+// ═══════════════════════════════════════
+//  1. SCROLL PROGRESS BAR
+// ═══════════════════════════════════════
+const progressBar=document.getElementById('scroll-progress');
+function updateProgress(){
+  const h=document.documentElement.scrollHeight-window.innerHeight;
+  progressBar.style.width=(h>0?(window.scrollY/h)*100:0)+'%';
+}
+window.addEventListener('scroll',updateProgress,{passive:true});
+updateProgress();
+
+// ═══════════════════════════════════════
+//  2. SCROLL REVEAL (with stagger)
+// ═══════════════════════════════════════
+const revealObs=new IntersectionObserver(entries=>{
+  entries.forEach(e=>{if(e.isIntersecting){e.target.classList.add('vis');revealObs.unobserve(e.target)}});
+},{threshold:.12,rootMargin:'0px 0px -40px 0px'});
+document.querySelectorAll('.rv,.rv-left,.rv-right,.rv-scale').forEach(e=>revealObs.observe(e));
+
+// ═══════════════════════════════════════
+//  3. COUNTER ANIMATION (on scroll)
+// ═══════════════════════════════════════
+const countEls=document.querySelectorAll('[data-count]');
+const countObs=new IntersectionObserver(entries=>{
+  entries.forEach(e=>{
+    if(!e.isIntersecting)return;
+    countObs.unobserve(e.target);
+    const el=e.target;
+    const target=parseFloat(el.dataset.count);
+    const suffix=el.dataset.suffix||'';
+    const decimals=parseInt(el.dataset.decimals||'0');
+    const duration=1200;
+    const start=performance.now();
+    function tick(now){
+      const t=Math.min((now-start)/duration,1);
+      const ease=1-Math.pow(1-t,3);
+      const val=ease*target;
+      el.textContent=(decimals>0?val.toFixed(decimals):Math.round(val))+suffix;
+      if(t<1)requestAnimationFrame(tick);
+    }
+    requestAnimationFrame(tick);
+  });
+},{threshold:.5});
+countEls.forEach(e=>countObs.observe(e));
+
+// ═══════════════════════════════════════
+//  4. ANIMATED BAR FILLS (on scroll)
+// ═══════════════════════════════════════
+const barEls=document.querySelectorAll('.bar-anim');
+const barObs=new IntersectionObserver(entries=>{
+  entries.forEach(e=>{
+    if(!e.isIntersecting)return;
+    barObs.unobserve(e.target);
+    const el=e.target;
+    requestAnimationFrame(()=>{
+      el.classList.remove('bar-anim');
+      el.style.width=el.dataset.bar;
+    });
+  });
+},{threshold:.3});
+barEls.forEach(e=>barObs.observe(e));
+
+// ═══════════════════════════════════════
+//  5. PARALLAX
+// ═══════════════════════════════════════
+const parallaxEls=document.querySelectorAll('.parallax');
+let ticking=false;
+function updateParallax(){
+  const scrollTop=window.scrollY;
+  parallaxEls.forEach(el=>{
+    const speed=parseFloat(el.dataset.speed||'.2');
+    const rect=el.getBoundingClientRect();
+    const offset=(rect.top+scrollTop)*speed;
+    el.style.transform='translateY('+(-offset*.15).toFixed(1)+'px)';
+  });
+  ticking=false;
+}
+window.addEventListener('scroll',()=>{if(!ticking){ticking=true;requestAnimationFrame(updateParallax)}},{passive:true});
+
+// ═══════════════════════════════════════
+//  6. NAV SHRINK ON SCROLL
+// ═══════════════════════════════════════
+const nav=document.querySelector('.nav');
+window.addEventListener('scroll',()=>{
+  nav.classList.toggle('scrolled',window.scrollY>50);
+},{passive:true});
+
+// ═══════════════════════════════════════
+//  7. PM TOGGLE
+// ═══════════════════════════════════════
+const cmds={
+  bun:['bun install','bun run dev','bun run bench','bun run bench:report'],
+  pnpm:['pnpm install','pnpm dev','pnpm bench','pnpm bench:report'],
+  npm:['npm install','npm run dev','npm run bench','npm run bench:report'],
+  yarn:['yarn','yarn dev','yarn bench','yarn bench:report'],
+};
+document.getElementById('pm-toggle').addEventListener('click',e=>{
+  const btn=e.target.closest('.pm-btn');if(!btn)return;
+  const pm=btn.dataset.pm;
+  document.querySelectorAll('.pm-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  const c=cmds[pm];
+  document.getElementById('cmd-install').textContent=c[0];
+  document.getElementById('cmd-dev').textContent=c[1];
+  document.getElementById('cmd-bench').textContent=c[2];
+  document.getElementById('cmd-report').textContent=c[3];
+});
+
+// ═══════════════════════════════════════
+//  8. SYNAPSE DEMO
+// ═══════════════════════════════════════
+(async()=>{
+  const canvas=document.getElementById('demo-canvas');
+  if(!navigator.gpu){
+    canvas.parentElement.innerHTML='<div class="demo-nope">WebGPU non disponible dans ce navigateur.<br>Utilisez Chrome 113+, Edge 113+ ou Firefox Nightly.</div>';
+    return;
+  }
+  try{
+    const{mountDemo}=await import('/src/landing.ts');
+    await mountDemo(canvas);
+  }catch(err){
+    console.error('Demo mount failed:',err);
+    document.getElementById('demo-fps').textContent='Erreur: '+err.message;
+  }
+})();
+</script>
+</body>
 </html>
