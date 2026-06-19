@@ -15,7 +15,7 @@ export type BenchConfigOptions = {
 };
 
 const DEFAULT_CONFIG: BenchConfig = {
-  rects: 2500,
+  rects: 10000,
   size: 12,
   speed: 0.9,
   gpu: true,
@@ -54,6 +54,11 @@ export function parseNumber(value: string | null, fallback: number): number {
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
+function parseBool(value: string | null, fallback: boolean): boolean {
+  if (value === null) return fallback;
+  return value !== "0" && value !== "false";
+}
+
 export function readBenchConfig(options: BenchConfigOptions = {}): BenchConfig {
   const params = new URLSearchParams(window.location.search);
   const maxRects = options.maxRects ?? 50000;
@@ -61,17 +66,13 @@ export function readBenchConfig(options: BenchConfigOptions = {}): BenchConfig {
   const allowGpuParam = options.allowGpuParam ?? true;
   const defaultStatic = options.defaultStatic ?? DEFAULT_CONFIG.static;
   const allowStaticParam = options.allowStaticParam ?? true;
-  const gpuParam = params.get("gpu");
+
   const gpu = allowGpuParam
-    ? gpuParam
-      ? gpuParam !== "0" && gpuParam !== "false"
-      : defaultGpu
+    ? parseBool(params.get("gpu"), defaultGpu)
     : defaultGpu;
-  const staticParam = params.get("static");
+
   const staticMode = allowStaticParam
-    ? staticParam
-      ? staticParam !== "0" && staticParam !== "false"
-      : defaultStatic
+    ? parseBool(params.get("static"), defaultStatic)
     : defaultStatic;
 
   return {

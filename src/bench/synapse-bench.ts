@@ -29,18 +29,41 @@ function formatStats(
   canvasSize: Vec2
 ): string {
   return [
-    "Synapse Bench",
+    "Synapse Bench (uncapped)",
     `Mode: ${label}`,
     `Rectangles: ${rects}`,
     `Draw calls: ${drawCalls}`,
     `Nodes: ${nodeCount}`,
+    "",
     `FPS: ${fps.toFixed(1)}`,
     `Frame time: ${frameMs.toFixed(2)} ms`,
     `CPU render: ${cpuMs.toFixed(2)} ms`,
     `Update loop: ${updateMs.toFixed(2)} ms`,
     `Canvas: ${Math.round(canvasSize.x)}x${Math.round(canvasSize.y)} px`,
-    "Params: ?rects=5000&size=10&speed=0.9&gpu=1&static=1",
+    "",
+    "Params: ?rects=10000&size=10&speed=0.9&gpu=1&static=0",
   ].join("\n");
+}
+
+function createUncappedLoop(callback: () => void): { stop: () => void } {
+  const channel = new MessageChannel();
+  let running = true;
+
+  channel.port1.onmessage = () => {
+    if (!running) return;
+    callback();
+    channel.port2.postMessage(null);
+  };
+
+  channel.port2.postMessage(null);
+
+  return {
+    stop: () => {
+      running = false;
+      channel.port1.close();
+      channel.port2.close();
+    },
+  };
 }
 
 export async function createSynapseBench(
@@ -93,10 +116,6 @@ export async function createSynapseBench(
   }
 
   engine.enableStats(true);
-  if (config.static) {
-    engine.setContinuousRender(true);
-  }
-  engine.start();
 
   const dpr = window.devicePixelRatio || 1;
   const sizePx = config.size * dpr;
@@ -129,11 +148,7 @@ export async function createSynapseBench(
     };
 
     const color = palette[i % palette.length];
-    const box = engine.createBox({
-      position,
-      size,
-      color,
-    });
+    const box = engine.createBox({ position, size, color });
 
     boxes.push(box);
     positions.push(position);
@@ -146,10 +161,14 @@ export async function createSynapseBench(
     console.warn("GPU simulation unavailable; using CPU updates.");
   }
 
-  let updateMs = 0;
+  let frameCount = 0;
+  let fpsWindowStart = performance.now();
+  let currentFps = 0;
+  let currentFrameMs = 0;
+  let lastCpuMs = 0;
+  let lastUpdateMs = 0;
   let lastOverlayUpdate = 0;
-  let rafId = 0;
-  let running = true;
+
   let latestSample: BenchSample = {
     fps: 0,
     frameMs: 0,
@@ -160,11 +179,8 @@ export async function createSynapseBench(
   };
 
   const tick = (): void => {
-    if (!running) {
-      return;
-    }
+    const frameStart = performance.now();
 
-    const updateStart = performance.now();
     const bounds = engine.getCanvasSize();
     const maxX = Math.max(0, bounds.x - sizePx);
     const maxY = Math.max(0, bounds.y - sizePx);
@@ -191,16 +207,28 @@ export async function createSynapseBench(
       }
     }
 
-    updateMs = config.static ? 0 : performance.now() - updateStart;
+    engine.renderFrame();
 
-    const stats = engine.getFrameStats();
+    const frameEnd = performance.now();
+    lastCpuMs = frameEnd - frameStart;
+    lastUpdateMs = config.static ? 0 : lastCpuMs;
+    frameCount++;
+
+    const elapsed = frameEnd - fpsWindowStart;
+    if (elapsed >= 500) {
+      currentFps = (frameCount / elapsed) * 1000;
+      currentFrameMs = elapsed / frameCount;
+      frameCount = 0;
+      fpsWindowStart = frameEnd;
+    }
+
     latestSample = {
-      fps: stats.fps,
-      frameMs: stats.frameMs,
-      updateMs,
-      nodeCount: stats.nodeCount,
-      cpuMs: stats.cpuMs,
-      drawCalls: stats.drawCalls,
+      fps: currentFps,
+      frameMs: currentFrameMs,
+      updateMs: lastUpdateMs,
+      nodeCount: boxes.length,
+      cpuMs: lastCpuMs,
+      drawCalls: 1,
     };
 
     options.onSample?.(latestSample);
@@ -216,27 +244,24 @@ export async function createSynapseBench(
         overlay.textContent = formatStats(
           label,
           config.rects,
-          updateMs,
-          stats.frameMs,
-          stats.fps,
-          stats.cpuMs,
-          stats.drawCalls,
-          stats.nodeCount,
+          lastUpdateMs,
+          currentFrameMs,
+          currentFps,
+          lastCpuMs,
+          1,
+          boxes.length,
           bounds
         );
         lastOverlayUpdate = now;
       }
     }
-
-    rafId = requestAnimationFrame(tick);
   };
 
-  rafId = requestAnimationFrame(tick);
+  const loop = createUncappedLoop(tick);
 
   return {
     stop: () => {
-      running = false;
-      cancelAnimationFrame(rafId);
+      loop.stop();
       engine.destroy();
       canvas.remove();
       overlay?.remove();

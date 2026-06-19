@@ -14,5 +14,10 @@
     "skipLibCheck": true,
     "types": ["vite/client", "@webgpu/types"]
   },
-  "include": ["src"]
+  "include": ["src"],
+  "exclude": [
+    "src/adapters/vue-bridge.ts",
+    "src/adapters/solid-bridge.tsx",
+    "src/adapters/angular-bridge.ts"
+  ]
 }

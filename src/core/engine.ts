@@ -1,5 +1,5 @@
-import type { Vec2, Color4, BoxProps, SynapseFrameStats } from "./types";
-import { ShaderStage, BufferUsage } from "./flags";
+import type { Vec2, Color4, BoxProps, SynapseFrameStats, NodeHandlers, TextProps, LayoutProps, FontAtlas } from "./types";
+import { ShaderStage } from "./flags";
 import {
   ZERO_COLOR,
   ZERO_VEC2,
@@ -15,7 +15,9 @@ import {
 } from "./constants";
 import { SceneGraph, RectNode } from "./scene-graph";
 import { SynapseBox } from "./box";
-import BufferManager from "./buffer-manager";
+import { BufferManager } from "./buffer-manager";
+import { TextRenderer } from "./text-renderer";
+import { generateFontAtlas } from "./font-atlas";
 
 export class SynapseEngine {
   private adapter!: GPUAdapter;
@@ -37,6 +39,9 @@ export class SynapseEngine {
   private bufferManager!: BufferManager;
   private frameIndex = 0;
   private format: GPUTextureFormat = "bgra8unorm";
+
+  private textRenderer?: TextRenderer;
+  private fontAtlas?: FontAtlas;
 
   private readonly scene = new SceneGraph();
   private readonly globalUniformData = new Float32Array(GLOBAL_UNIFORM_FLOATS);
@@ -112,6 +117,7 @@ export class SynapseEngine {
     this.stop();
     this.canvas.removeEventListener("pointermove", this.onPointerMove);
     this.canvas.removeEventListener("pointerdown", this.onPointerDown);
+    this.textRenderer?.destroy();
     this.destroyBuffers();
   }
 
@@ -251,6 +257,11 @@ export class SynapseEngine {
       shadowOffset,
       shadowBlur,
       shadowSpread,
+      parentId: props.parentId,
+      children: [],
+      worldPosition: { x: props.position.x, y: props.position.y },
+      clipChildren: props.clipChildren ?? false,
+      layoutDirty: false,
     };
 
     const index = this.scene.add(node);
@@ -262,15 +273,9 @@ export class SynapseEngine {
   }
 
   updateBox(id: number, updates: Partial<BoxProps>): void {
-    const node = this.scene.getById(id);
-    const index = this.scene.getIndex(id);
-    if (!node) {
-      return;
-    }
-
-    if (index === undefined) {
-      return;
-    }
+    const result = this.scene.getNodeAndIndex(id);
+    if (!result) return;
+    const { node, index } = result;
 
     if (updates.position) {
       node.position = updates.position;
@@ -325,7 +330,7 @@ export class SynapseEngine {
     this.invalidate();
   }
 
-  setNodeHandlers(id: number, handlers: { onClick?: (e: any) => void; onPointerEnter?: (e: any) => void; onPointerLeave?: (e: any) => void }): void {
+  setNodeHandlers(id: number, handlers: Partial<NodeHandlers>): void {
     const node = this.scene.getById(id);
     if (!node) {
       return;
@@ -359,6 +364,62 @@ export class SynapseEngine {
     }
 
     this.invalidate();
+  }
+
+  setLayout(id: number, layout: LayoutProps): void {
+    const node = this.scene.getById(id);
+    if (!node) return;
+
+    node.layout = layout;
+    node.layoutDirty = true;
+    this.scene.applyLayout(id);
+    this.rewriteChildInstances(id);
+    this.invalidate();
+  }
+
+  async initTextRenderer(
+    fontSize = 32,
+    fontFamily = "sans-serif"
+  ): Promise<void> {
+    if (this.textRenderer) return;
+
+    this.fontAtlas = await generateFontAtlas(fontSize, fontFamily);
+    this.textRenderer = new TextRenderer(this.device);
+    await this.textRenderer.init(this.format, this.fontAtlas);
+  }
+
+  addText(props: TextProps): number {
+    if (!this.textRenderer) {
+      throw new Error("Text renderer not initialized. Call initTextRenderer() first.");
+    }
+    const id = this.textRenderer.addText(props.position, props.text, props.fontSize, props.color);
+    this.invalidate();
+    return id;
+  }
+
+  updateText(id: number, updates: Partial<Omit<TextProps, "parentId">>): void {
+    if (!this.textRenderer) return;
+    this.textRenderer.updateText(id, updates);
+    this.invalidate();
+  }
+
+  removeText(id: number): void {
+    if (!this.textRenderer) return;
+    this.textRenderer.removeText(id);
+    this.invalidate();
+  }
+
+  getDevice(): GPUDevice {
+    return this.device;
+  }
+
+  getSceneGraph(): SceneGraph {
+    return this.scene;
+  }
+
+  renderFrame(): void {
+    this.needsRender = true;
+    this.render();
   }
 
   invalidate(): void {
@@ -456,6 +517,7 @@ export class SynapseEngine {
       },
     });
 
+    this.validateDeviceLimits(device);
     this.bufferManager = new BufferManager(this.device, this.renderBindGroupLayout, this.computeBindGroupLayout);
     this.allocateBuffers(1);
 
@@ -463,11 +525,28 @@ export class SynapseEngine {
     this.canvas.addEventListener("pointerdown", this.onPointerDown);
   }
 
+  private validateDeviceLimits(device: GPUDevice): void {
+    const maxWorkgroup = device.limits.maxComputeWorkgroupSizeX;
+    if (WORKGROUP_SIZE > maxWorkgroup) {
+      console.warn(
+        `Configured WORKGROUP_SIZE (${WORKGROUP_SIZE}) exceeds device limit (${maxWorkgroup}). ` +
+        `GPU compute may fail.`
+      );
+    }
+
+    const maxInvocations = device.limits.maxComputeInvocationsPerWorkgroup;
+    if (WORKGROUP_SIZE > maxInvocations) {
+      console.warn(
+        `WORKGROUP_SIZE (${WORKGROUP_SIZE}) exceeds maxComputeInvocationsPerWorkgroup (${maxInvocations}).`
+      );
+    }
+  }
+
   private async loadShaderSource(fileName: string): Promise<string> {
-    const url = new URL(`./${fileName}`, import.meta.url);
+    const url = new URL(`../shaders/${fileName}`, import.meta.url);
     const response = await fetch(url);
     if (!response.ok) {
-      throw new Error(`Failed to load WGSL shader: ${response.status} ${response.statusText}`);
+      throw new Error(`Failed to load WGSL shader "${fileName}": ${response.status} ${response.statusText}`);
     }
     return response.text();
   }
@@ -503,9 +582,12 @@ export class SynapseEngine {
     }
 
     const frameStart = this.statsEnabled ? performance.now() : 0;
+
+    this.scene.computeWorldPositions();
+    this.scene.updateGrid(this.canvasSize.x, this.canvasSize.y);
     const nodes = this.scene.all();
     this.ensureInstanceCapacity(nodes.length, nodes);
-    const frameSlot = this.simulateOnGpu ? 0 : this.frameIndex;
+    const frameSlot = this.frameIndex;
 
     const view = this.context.getCurrentTexture().createView();
     const encoder = this.device.createCommandEncoder();
@@ -540,17 +622,19 @@ export class SynapseEngine {
       }
     }
 
+    if (this.textRenderer) {
+      this.textRenderer.render(pass, this.canvasSize.x, this.canvasSize.y);
+    }
+
     pass.end();
     this.device.queue.submit([encoder.finish()]);
     this.needsRender = false;
-    if (!this.simulateOnGpu) {
-      this.frameIndex = (this.frameIndex + 1) % FRAME_BUFFERS;
-    }
+    this.frameIndex = (this.frameIndex + 1) % FRAME_BUFFERS;
 
     if (this.statsEnabled) {
       const frameEnd = performance.now();
       this.lastCpuMs = frameEnd - frameStart;
-      this.lastDrawCalls = nodes.length > 0 ? 1 : 0;
+      this.lastDrawCalls = (nodes.length > 0 ? 1 : 0) + (this.textRenderer ? 1 : 0);
       this.lastNodeCount = nodes.length;
       this.recordFrame(frameStart);
     }
@@ -597,8 +681,8 @@ export class SynapseEngine {
     const color = node.isHovered && node.hoverColor ? node.hoverColor : node.color;
     const offset = index * INSTANCE_FLOATS;
 
-    this.instanceData[offset] = node.position.x;
-    this.instanceData[offset + 1] = node.position.y;
+    this.instanceData[offset] = node.worldPosition.x;
+    this.instanceData[offset + 1] = node.worldPosition.y;
     this.instanceData[offset + 2] = node.size.x;
     this.instanceData[offset + 3] = node.size.y;
     this.instanceData[offset + 4] = color.r;
@@ -651,8 +735,6 @@ export class SynapseEngine {
     const end = (endIndex + 1) * INSTANCE_FLOATS;
     const slice = this.instanceData.subarray(start, end);
 
-    // State-to-GPU path: framework state -> setters -> scene graph mutation
-    // -> pack dirty range -> queue.writeBuffer -> one instanced draw.
     this.device.queue.writeBuffer(
       this.instanceBuffers[frameSlot],
       startIndex * INSTANCE_STRIDE,
@@ -693,7 +775,7 @@ export class SynapseEngine {
   private dispatchCompute(
     encoder: GPUCommandEncoder,
     nodeCount: number,
-    frameSlot: number
+    _frameSlot: number
   ): void {
     if (!this.computePipeline || nodeCount === 0) {
       return;
@@ -711,15 +793,13 @@ export class SynapseEngine {
     pass.end();
   }
 
-  private ensureInstanceCapacity(required: number, nodes: RectNode[]): void {
+  private ensureInstanceCapacity(required: number, _nodes: RectNode[]): void {
     if (required <= this.instanceCapacity) {
       return;
     }
 
     const nextCapacity = Math.max(required, this.instanceCapacity * 2, 1);
     this.allocateBuffers(nextCapacity);
-    this.forceFullUpload = true;
-    this.markAllDirty(nodes.length);
   }
 
   private destroyBuffers(): void {
@@ -750,10 +830,8 @@ export class SynapseEngine {
       );
     }
 
-    // Delegate actual GPU buffer creation to BufferManager
     this.bufferManager.allocate(this.instanceData.byteLength, GLOBAL_UNIFORM_SIZE, this.velocityData.byteLength);
 
-    // Mirror buffers locally for existing code paths
     this.instanceBuffers = this.bufferManager.instanceBuffers;
     this.globalUniformBuffers = this.bufferManager.globalUniformBuffers;
     this.renderBindGroups = this.bufferManager.renderBindGroups;
@@ -769,6 +847,17 @@ export class SynapseEngine {
     this.forceFullUpload = true;
     this.clearDirty();
     this.frameIndex = 0;
+  }
+
+  private rewriteChildInstances(parentId: number): void {
+    const children = this.scene.getChildren(parentId);
+    for (const child of children) {
+      const index = this.scene.getIndex(child.id);
+      if (index !== undefined) {
+        this.writeInstanceAt(index, child);
+        this.markDirty(index);
+      }
+    }
   }
 
   private recordFrame(frameStamp: number): void {
@@ -804,24 +893,21 @@ export class SynapseEngine {
     }
 
     if (this.hoveredId !== null) {
-      const previous = this.scene.getById(this.hoveredId);
-      const previousIndex = this.scene.getIndex(this.hoveredId);
-      if (previous) {
-        previous.isHovered = false;
-        if (previousIndex !== undefined) {
-          this.writeInstanceAt(previousIndex, previous);
-          this.markDirty(previousIndex);
-        }
-        previous.onPointerLeave?.({ x: point.x, y: point.y, nodeId: previous.id });
+      const prev = this.scene.getNodeAndIndex(this.hoveredId);
+      if (prev) {
+        prev.node.isHovered = false;
+        this.writeInstanceAt(prev.index, prev.node);
+        this.markDirty(prev.index);
+        prev.node.onPointerLeave?.({ x: point.x, y: point.y, nodeId: prev.node.id });
       }
     }
 
     if (hit) {
-      const hitIndex = this.scene.getIndex(hit.id);
+      const hitResult = this.scene.getNodeAndIndex(hit.id);
       hit.isHovered = true;
-      if (hitIndex !== undefined) {
-        this.writeInstanceAt(hitIndex, hit);
-        this.markDirty(hitIndex);
+      if (hitResult) {
+        this.writeInstanceAt(hitResult.index, hitResult.node);
+        this.markDirty(hitResult.index);
       }
       hit.onPointerEnter?.({ x: point.x, y: point.y, nodeId: hit.id });
     }

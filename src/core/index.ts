@@ -1,3 +1,10 @@
 export * from "./types";
 export { SynapseBox } from "./box";
 export { SynapseEngine } from "./engine";
+export { SceneGraph } from "./scene-graph";
+export type { RectNode } from "./scene-graph";
+export { BufferManager } from "./buffer-manager";
+export { BufferPool } from "./buffer-pool";
+export { TextRenderer } from "./text-renderer";
+export { generateFontAtlas, measureText } from "./font-atlas";
+export { UpdateWorker } from "./update-worker";

@@ -23,6 +23,28 @@ export interface BoxProps {
   shadowOffset?: Vec2;
   shadowBlur?: number;
   shadowSpread?: number;
+  parentId?: number;
+  clipChildren?: boolean;
+}
+
+export interface TextProps {
+  position: Vec2;
+  text: string;
+  fontSize: number;
+  color: Color4;
+  parentId?: number;
+}
+
+export type LayoutDirection = "row" | "column";
+
+export interface LayoutProps {
+  direction: LayoutDirection;
+  gap?: number;
+  padding?: number;
+  paddingX?: number;
+  paddingY?: number;
+  alignItems?: "start" | "center" | "end";
+  wrap?: boolean;
 }
 
 export interface SynapsePointerEvent {
@@ -46,3 +68,23 @@ export type NodeHandlers = {
   onPointerEnter?: PointerHandler;
   onPointerLeave?: PointerHandler;
 };
+
+export interface GlyphMetrics {
+  char: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  xOffset: number;
+  yOffset: number;
+  xAdvance: number;
+}
+
+export interface FontAtlas {
+  texture: ImageBitmap;
+  glyphs: Map<string, GlyphMetrics>;
+  fontSize: number;
+  lineHeight: number;
+  atlasWidth: number;
+  atlasHeight: number;
+}

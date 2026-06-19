@@ -3,7 +3,6 @@ import {
   BenchHandle,
   BenchSample,
   clamp,
-  createFrameWindow,
   createOverlay,
   readBenchConfig,
   setPageBackground,
@@ -19,7 +18,7 @@ type DomBenchOptions = {
 function formatStats(
   label: string,
   config: BenchConfig,
-  updateMs: number,
+  cpuMs: number,
   frameMs: number,
   fps: number,
   nodeCount: number,
@@ -27,17 +26,40 @@ function formatStats(
   bounds: { width: number; height: number }
 ): string {
   return [
-    "Synapse Bench",
+    "Synapse Bench (uncapped)",
     `Mode: ${label}`,
     `Rectangles: ${config.rects}`,
     `Nodes: ${nodeCount}`,
+    "",
     `FPS: ${fps.toFixed(1)}`,
     `Frame time: ${frameMs.toFixed(2)} ms`,
-    `Update loop: ${updateMs.toFixed(2)} ms`,
+    `CPU work: ${cpuMs.toFixed(2)} ms`,
     `Element size: ${sizePx}px`,
     `Viewport: ${Math.round(bounds.width)}x${Math.round(bounds.height)} px`,
-    "Params: ?rects=5000&size=10&speed=0.9&static=1",
+    "",
+    "Params: ?rects=10000&size=10&speed=0.9&static=0",
   ].join("\n");
+}
+
+function createUncappedLoop(callback: () => void): { stop: () => void } {
+  const channel = new MessageChannel();
+  let running = true;
+
+  channel.port1.onmessage = () => {
+    if (!running) return;
+    callback();
+    channel.port2.postMessage(null);
+  };
+
+  channel.port2.postMessage(null);
+
+  return {
+    stop: () => {
+      running = false;
+      channel.port1.close();
+      channel.port2.close();
+    },
+  };
 }
 
 export function createDomBench(options: DomBenchOptions = {}): BenchHandle {
@@ -99,24 +121,23 @@ export function createDomBench(options: DomBenchOptions = {}): BenchHandle {
     velocities.push(velocity);
   }
 
-  const frameWindow = createFrameWindow();
-  let updateMs = 0;
+  let frameCount = 0;
+  let fpsWindowStart = performance.now();
+  let currentFps = 0;
+  let currentFrameMs = 0;
+  let lastCpuMs = 0;
   let lastOverlayUpdate = 0;
-  let rafId = 0;
-  let running = true;
+
   let latestSample: BenchSample = {
     fps: 0,
     frameMs: 0,
     updateMs: 0,
     nodeCount: elements.length,
+    cpuMs: 0,
   };
 
   const tick = (): void => {
-    if (!running) {
-      return;
-    }
-
-    const frameStart = performance.now();
+    const cpuStart = performance.now();
     const rect = root.getBoundingClientRect();
     const maxX = Math.max(0, rect.width - sizePx);
     const maxY = Math.max(0, rect.height - sizePx);
@@ -143,14 +164,24 @@ export function createDomBench(options: DomBenchOptions = {}): BenchHandle {
       }
     }
 
-    updateMs = config.static ? 0 : performance.now() - frameStart;
-    const frameStats = frameWindow.record(frameStart);
+    const cpuEnd = performance.now();
+    lastCpuMs = config.static ? 0 : cpuEnd - cpuStart;
+    frameCount++;
+
+    const elapsed = cpuEnd - fpsWindowStart;
+    if (elapsed >= 500) {
+      currentFps = (frameCount / elapsed) * 1000;
+      currentFrameMs = elapsed / frameCount;
+      frameCount = 0;
+      fpsWindowStart = cpuEnd;
+    }
 
     latestSample = {
-      fps: frameStats.fps,
-      frameMs: frameStats.frameMs,
-      updateMs,
+      fps: currentFps,
+      frameMs: currentFrameMs,
+      updateMs: lastCpuMs,
       nodeCount: elements.length,
+      cpuMs: lastCpuMs,
     };
 
     options.onSample?.(latestSample);
@@ -161,9 +192,9 @@ export function createDomBench(options: DomBenchOptions = {}): BenchHandle {
         overlay.textContent = formatStats(
           label,
           config,
-          updateMs,
-          frameStats.frameMs,
-          frameStats.fps,
+          lastCpuMs,
+          currentFrameMs,
+          currentFps,
           elements.length,
           sizePx,
           rect
@@ -171,16 +202,13 @@ export function createDomBench(options: DomBenchOptions = {}): BenchHandle {
         lastOverlayUpdate = now;
       }
     }
-
-    rafId = requestAnimationFrame(tick);
   };
 
-  rafId = requestAnimationFrame(tick);
+  const loop = createUncappedLoop(tick);
 
   return {
     stop: () => {
-      running = false;
-      cancelAnimationFrame(rafId);
+      loop.stop();
       root.remove();
       overlay?.remove();
     },

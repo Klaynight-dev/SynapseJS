@@ -1,9 +1,9 @@
 import { FRAME_BUFFERS } from "./constants";
 
 export class BufferManager {
-  device: GPUDevice;
-  renderBindGroupLayout: GPUBindGroupLayout;
-  computeBindGroupLayout: GPUBindGroupLayout;
+  private device: GPUDevice;
+  private renderBindGroupLayout: GPUBindGroupLayout;
+  private computeBindGroupLayout: GPUBindGroupLayout;
 
   globalUniformBuffers: GPUBuffer[] = [];
   instanceBuffers: GPUBuffer[] = [];
@@ -17,12 +17,31 @@ export class BufferManager {
     this.computeBindGroupLayout = computeBindGroupLayout;
   }
 
-  allocate(instanceByteLength: number, globalUniformSize: number, velocityByteLength: number) {
+  allocate(instanceByteLength: number, globalUniformSize: number, velocityByteLength: number): void {
     this.destroy();
 
-    // velocity buffer
+    const maxBufferSize = this.device.limits.maxBufferSize;
+    const maxStorageSize = this.device.limits.maxStorageBufferBindingSize;
+
+    const instanceSize = Math.max(1, instanceByteLength);
+    const velocitySize = Math.max(1, velocityByteLength);
+
+    if (instanceSize > maxBufferSize || instanceSize > maxStorageSize) {
+      throw new Error(
+        `Instance buffer size (${instanceSize} bytes) exceeds device limits ` +
+        `(maxBufferSize=${maxBufferSize}, maxStorageBufferBindingSize=${maxStorageSize})`
+      );
+    }
+
+    if (velocitySize > maxBufferSize || velocitySize > maxStorageSize) {
+      throw new Error(
+        `Velocity buffer size (${velocitySize} bytes) exceeds device limits ` +
+        `(maxBufferSize=${maxBufferSize}, maxStorageBufferBindingSize=${maxStorageSize})`
+      );
+    }
+
     this.velocityBuffer = this.device.createBuffer({
-      size: Math.max(1, velocityByteLength),
+      size: velocitySize,
       usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
     });
 
@@ -33,7 +52,7 @@ export class BufferManager {
       });
 
       const instanceBuffer = this.device.createBuffer({
-        size: Math.max(1, instanceByteLength),
+        size: instanceSize,
         usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
       });
 
@@ -60,27 +79,35 @@ export class BufferManager {
     });
   }
 
-  writeVelocities(velocityArrayBuffer: ArrayBuffer, byteLength: number) {
+  writeVelocities(velocityArrayBuffer: ArrayBuffer, byteLength: number): void {
     if (byteLength > 0 && this.velocityBuffer) {
       this.device.queue.writeBuffer(this.velocityBuffer, 0, velocityArrayBuffer, 0, byteLength);
     }
   }
 
-  destroy() {
+  destroy(): void {
     for (const b of this.instanceBuffers) {
-      try { b.destroy(); } catch {}
+      this.safeDestroyBuffer(b);
     }
     for (const b of this.globalUniformBuffers) {
-      try { b.destroy(); } catch {}
+      this.safeDestroyBuffer(b);
     }
     if (this.velocityBuffer) {
-      try { this.velocityBuffer.destroy(); } catch {}
+      this.safeDestroyBuffer(this.velocityBuffer);
     }
 
     this.instanceBuffers = [];
     this.globalUniformBuffers = [];
     this.renderBindGroups = [];
     this.computeBindGroup = undefined;
+  }
+
+  private safeDestroyBuffer(buffer: GPUBuffer): void {
+    try {
+      buffer.destroy();
+    } catch (error) {
+      console.warn("Failed to destroy GPU buffer:", error);
+    }
   }
 }
 

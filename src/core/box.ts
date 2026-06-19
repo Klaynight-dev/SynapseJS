@@ -1,4 +1,4 @@
-import type { BoxProps, Color4, Vec2 } from "./types";
+import type { BoxProps, Color4, Vec2, PointerHandler } from "./types";
 import type { SynapseEngine } from "./engine";
 
 export class SynapseBox {
@@ -24,15 +24,15 @@ export class SynapseBox {
     this.engine.updateBox(this.id, { hoverColor });
   }
 
-  onClick(handler?: (event: { x: number; y: number; nodeId: number }) => void): void {
+  onClick(handler?: PointerHandler): void {
     this.engine.setNodeHandlers(this.id, { onClick: handler });
   }
 
-  onPointerEnter(handler?: (event: { x: number; y: number; nodeId: number }) => void): void {
+  onPointerEnter(handler?: PointerHandler): void {
     this.engine.setNodeHandlers(this.id, { onPointerEnter: handler });
   }
 
-  onPointerLeave(handler?: (event: { x: number; y: number; nodeId: number }) => void): void {
+  onPointerLeave(handler?: PointerHandler): void {
     this.engine.setNodeHandlers(this.id, { onPointerLeave: handler });
   }
 
