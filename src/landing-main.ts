@@ -135,13 +135,20 @@ document.getElementById("pm-toggle")!.addEventListener("click", (e) => {
 
 // ── Synapse Demo ──
 const canvas = document.getElementById("demo-canvas") as HTMLCanvasElement;
+
+function showWebGPUNotAvailable(message?: string) {
+  if (canvas && canvas.parentElement) {
+    const errorDetails = message ? ` (${message})` : "";
+    canvas.parentElement.innerHTML =
+      `<div class="demo-nope">WebGPU non disponible dans ce navigateur${errorDetails}.<br>Utilisez Chrome 113+, Edge 113+ ou Firefox Nightly.</div>`;
+  }
+}
+
 if (!navigator.gpu) {
-  canvas.parentElement!.innerHTML =
-    '<div class="demo-nope">WebGPU non disponible dans ce navigateur.<br>Utilisez Chrome 113+, Edge 113+ ou Firefox Nightly.</div>';
+  showWebGPUNotAvailable();
 } else {
   mountDemo(canvas).catch((err) => {
     console.error("Demo mount failed:", err);
-    document.getElementById("demo-fps")!.textContent =
-      "Erreur: " + err.message;
+    showWebGPUNotAvailable(err instanceof Error ? err.message : String(err));
   });
 }
